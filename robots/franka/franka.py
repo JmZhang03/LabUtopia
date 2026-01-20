@@ -26,7 +26,7 @@ from isaacsim.storage.native import get_assets_root_path
 from isaacsim.sensors.physics import ContactSensor
 from isaacsim.sensors.camera import Camera
 
-from utils.object_utils import ObjectUtils
+from lab_utils.object_utils import ObjectUtils
 
 
 class Franka(Robot):

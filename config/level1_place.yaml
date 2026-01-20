@@ -9,7 +9,7 @@ usd_path: "assets/chemistry_lab/lab_001/lab_001.usd"
 target_path: "/World/target_plat"
 
 
-max_episodes: 11
+max_episodes: 10
 
 infer:
   type: "local"

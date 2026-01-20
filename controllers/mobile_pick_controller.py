@@ -7,7 +7,7 @@ from isaacsim.core.utils.types import ArticulationAction
 from .base_controller import BaseController
 from .robot_controllers.ridgebase.ridgebase_controller import RidgebaseController
 from .atomic_actions.pick_controller import PickController
-from utils.object_utils import ObjectUtils
+from lab_utils.object_utils import ObjectUtils
 
 
 class MobilePickController(BaseController):

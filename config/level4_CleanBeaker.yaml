@@ -3,7 +3,7 @@ name: Level4_CleanBeaker
 task_type: "cleanbeaker"
 controller_type: "cleanbeaker"
 
-mode: "infer"
+mode: "collect" # "infer"
 
 usd_path: "assets/chemistry_lab/hard_task/Scene1_hard.usd"
 target_beaker: "/World/target_plat"
@@ -48,7 +48,7 @@ table_material_paths:
  - /World/Looks/Material_6_plastic_light_blue
  - /World/Looks/Material_7_stainless
 
-max_episodes: 100
+max_episodes: 10
 
 cameras:
   - prim_path: "/World/Camera1"

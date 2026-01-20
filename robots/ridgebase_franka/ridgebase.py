@@ -86,7 +86,7 @@ class Ridgebase(Robot):
         Returns:
             np.ndarray: The gripper position
         """
-        from utils.object_utils import ObjectUtils
+        from lab_utils.object_utils import ObjectUtils
         return ObjectUtils.get_instance().get_object_xform_position(
             object_path=self.prim_path_str + "/panda_hand/tool_center"
         )

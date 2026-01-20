@@ -12,7 +12,7 @@ per_episode: 20
 material_types: 5
 button_types: 3
 
-max_episodes: 100
+max_episodes: 10
 
 infer:
   type: "local"

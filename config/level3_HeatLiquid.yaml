@@ -7,7 +7,7 @@ mode: "collect"
 
 usd_path: "assets/chemistry_lab/lab_003/lab_003.usd"
 
-max_episodes: 200
+max_episodes: 10
 
 infer:
   type: "local"

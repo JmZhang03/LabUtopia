@@ -123,7 +123,7 @@ class OpenTaskController(BaseController):
             else:
                 self.check_success_counter = 0
             
-            print(self.check_success_counter)
+            # print(self.check_success_counter)
             return action, False, False
 
         success = self.check_success_counter >= self.REQUIRED_SUCCESS_STEPS

@@ -6,7 +6,7 @@ controller_type: "OpenTransportPour"
 mode: "collect"
 usd_path: "assets/chemistry_lab/lab_001/lab_001.usd"
 
-max_episodes: 50
+max_episodes: 10
 
 infer:
   type: "local"

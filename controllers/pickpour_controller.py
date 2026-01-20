@@ -2,7 +2,7 @@ from scipy.spatial.transform import Rotation as R
 import numpy as np
 from enum import Enum
 from typing import Optional
-from utils.task_utils import TaskUtils
+from lab_utils.task_utils import TaskUtils
 import re
 
 from .atomic_actions.pick_controller import PickController

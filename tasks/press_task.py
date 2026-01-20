@@ -2,7 +2,7 @@ import numpy as np
 from .base_task import BaseTask
 
 import random
-from utils.Material_utils import bind_material_to_object
+from lab_utils.Material_utils import bind_material_to_object
 
 class PressTask(BaseTask):
     def __init__(self, cfg, world, stage, robot):

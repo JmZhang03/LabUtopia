@@ -1,7 +1,7 @@
 import numpy as np
 import random
 from tasks.base_task import BaseTask
-from utils.Material_utils import bind_material_to_object
+from lab_utils.Material_utils import bind_material_to_object
 
 class PlacePressTask(BaseTask):
     def __init__(self, cfg, world, stage, robot):

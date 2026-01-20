@@ -3,7 +3,7 @@ from typing import Optional
 from scipy.spatial.transform import Rotation as R
 import numpy as np
 from enum import Enum
-from utils.task_utils import TaskUtils
+from lab_utils.task_utils import TaskUtils
 
 from .atomic_actions.pick_controller import PickController
 from .atomic_actions.pour_controller import PourController

@@ -6,7 +6,7 @@ from controllers.inference_engines.inference_engine_factory import InferenceEngi
 from controllers.robot_controllers.grapper_manager import Gripper
 from controllers.robot_controllers.trajectory_controller import FrankaTrajectoryController
 from factories.collector_factory import create_collector
-from utils.object_utils import ObjectUtils
+from lab_utils.object_utils import ObjectUtils
 from robots.franka.rmpflow_controller import RMPFlowController as FrankaRMPFlowController
 
 class BaseController(ABC):

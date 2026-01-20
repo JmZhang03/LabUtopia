@@ -1,6 +1,6 @@
 import numpy as np
 from .base_task import BaseTask
-from utils.Material_utils import bind_material_to_object
+from lab_utils.Material_utils import bind_material_to_object
 
 class CleanBeakerTask(BaseTask):
     def __init__(self, cfg, world, stage, robot):

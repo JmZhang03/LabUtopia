@@ -5,7 +5,7 @@ controller_type: "close"
 
 mode: "collect"
 usd_path: "assets/chemistry_lab/lab_001/lab_001.usd"
-max_episodes: 100
+max_episodes: 10
 
 infer:
   type: "local"

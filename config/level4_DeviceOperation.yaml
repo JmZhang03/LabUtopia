@@ -36,7 +36,7 @@ task:
         y: [0.13, 0.18]
         z: [0.976, 0.976]
 
-max_episodes: 150
+max_episodes: 10
 
 cameras_names: ["camera_1", "camera_2", "camera_3"]
 

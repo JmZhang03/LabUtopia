@@ -2,7 +2,7 @@ import numpy as np
 import yaml
 from typing import Dict, Any
 from .base_task import BaseTask
-from utils.a_star import plan_navigation_path, real_to_grid, load_grid
+from lab_utils.a_star import plan_navigation_path, real_to_grid, load_grid
 from isaacsim.core.utils.rotations import quat_to_euler_angles
 
 
