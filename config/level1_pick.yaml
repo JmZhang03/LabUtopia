@@ -8,7 +8,7 @@ mode: "collect"
 usd_path: "assets/chemistry_lab/lab_001/lab_001.usd"
 
 
-max_episodes: 100
+max_episodes: 10
 
 infer:
   type: "local"
@@ -27,22 +27,32 @@ task:
   obj_paths:
     - path: "/World/conical_bottle02"
       position_range:
-        x: [0.21, 0.36]
-        y: [-0.08, 0.08]
+        x: [0.12, 0.12]
+        y: [-0.4, -0.4]
         z: [0.80, 0.80]
+    - path: "/World/DryingBox_01" # beaker1
+      position_range:
+        x: [0.15, 0.15]
+        y: [0.01, 0.01]
+        z: [0.80, 0.80]
+    # - path: "/World/Cabinet_01"
+    #   position_range:
+    #     x: [1, 1]
+    #     y: [0.3, 0.3]
+    #     z: [0.80, 0.80]
 
 cameras:
-  - prim_path: "/World/Camera1"
-    name: "camera_1"
-    translation: [2, 0, 2]
-    resolution: [256, 256]
-    focal_length: 6
-    orientation: [0.61237, 0.35355, 0.35355, 0.61237]
-    image_type: "rgb"
+  # - prim_path: "/World/Camera1"
+  #   name: "camera_1"
+  #   translation: [2, 0, 2]
+  #   resolution: [256, 256]
+  #   focal_length: 6
+  #   orientation: [0.61237, 0.35355, 0.35355, 0.61237]
+  #   image_type: "rgb"
 
   - prim_path: "/World/Camera2"
     name: "camera_2"
-    translation: [0.1, 0, 2.5]
+    translation: [0.1, 0.25, 5.3]
     resolution: [256, 256]
     focal_length: 6
     orientation: [0.70711, 0, 0, -0.70711]
@@ -52,6 +62,11 @@ cameras:
     name: "camera_3"
     resolution: [256, 256]
     image_type: "rgb"
+
+  # - prim_path: "/World/Ridgebase/base_link/Camera_01"
+  #   name: "camera_4"
+  #   resolution: [256, 256]
+  #   image_type: "rgb"
 
 robot:
   type: "franka"

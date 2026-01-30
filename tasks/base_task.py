@@ -2,9 +2,9 @@ from abc import ABC, abstractmethod
 from typing import Dict, Any
 import numpy as np
 from isaacsim.sensors.camera import Camera
-from utils.object_utils import ObjectUtils
+from lab_utils.object_utils import ObjectUtils
 from isaacsim.core.utils.semantics import add_update_semantics
-from utils.camera_utils import process_camera_image
+from lab_utils.camera_utils import process_camera_image
 from isaacsim.core.utils.prims import set_prim_visibility
 from pxr import UsdShade
 
@@ -267,19 +267,21 @@ class BaseTask(ABC):
             prim = self.stage.GetPrimAtPath(obj_path)
             
             if prim.IsValid():
-                if i == current_obj_idx:
-                    self.randomize_object_position(obj_path, position_range)
-                    set_prim_visibility(prim, True)
-                else:
-                    # Move non-current objects to far distance
-                    angle = 2 * np.pi * i / len(self.obj_configs)
-                    far_position = np.array([
-                        far_distance * np.cos(angle),
-                        far_distance * np.sin(angle),
-                        0.1
-                    ])
-                    self.object_utils.set_object_position(object_path=obj_path, position=far_position)
-                    set_prim_visibility(prim, False)
+                self.randomize_object_position(obj_path, position_range)
+                set_prim_visibility(prim, True)
+                # if i == current_obj_idx:
+                #     self.randomize_object_position(obj_path, position_range)
+                #     set_prim_visibility(prim, True)
+                # else:
+                #     # Move non-current objects to far distance
+                #     angle = 2 * np.pi * i / len(self.obj_configs)
+                #     far_position = np.array([
+                #         far_distance * np.cos(angle),
+                #         far_distance * np.sin(angle),
+                #         0.1
+                #     ])
+                #     self.object_utils.set_object_position(object_path=obj_path, position=far_position)
+                #     set_prim_visibility(prim, False)
         
         return self.obj_configs[current_obj_idx]['path']
     

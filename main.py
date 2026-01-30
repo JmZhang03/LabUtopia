@@ -40,7 +40,7 @@ extensions.enable_extension("omni.physx.bundle")
 extensions.enable_extension("omni.usdphysics.ui")
 
 from factories.robot_factory import create_robot
-from utils.object_utils import ObjectUtils
+from lab_utils.object_utils import ObjectUtils
 from factories.task_factory import create_task
 from factories.controller_factory import create_controller
 
@@ -70,6 +70,19 @@ def main():
         cfg.robot.type,
         position=np.array(cfg.robot.position)
     )
+
+    # robots = []
+    # for i, r_cfg in enumerate(cfg.robots):
+    #     prim_path = r_cfg.get("prim_path", f"/World/Robot_{i}")
+    #     name = r_cfg.get("name", f"robot_{i}")
+    #     robot = create_robot(
+    #         r_cfg.type,
+    #         prim_path=prim_path,
+    #         name=name,
+    #         position=np.array(r_cfg.position)
+    #     )
+    #     robots.append(robot)
+    # robot = robots[0]
     
     stage = omni.usd.get_context().get_stage()
     add_reference_to_stage(usd_path=os.path.abspath(cfg.usd_path), prim_path="/World")
@@ -141,8 +154,9 @@ def main():
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.25, (255, 255, 255), 1)
                         total_width += img.shape[1]
                     if show_video:
-                        cv2.imshow('Camera Views', combined_img)
-                        cv2.waitKey(1)
+                        pass
+                        # cv2.imshow('Camera Views', combined_img)
+                        # cv2.waitKey(1)
                     if save_video:
                         output_dir = os.path.join(cfg.multi_run.run_dir, "video")
                         os.makedirs(output_dir, exist_ok=True)
