@@ -15,6 +15,7 @@ from tasks.opentransportpour_task import OpenTransportPourTask
 from tasks.LiquidMixing_task import LiquidMixing
 from tasks.navigation_task import NavigationTask
 from tasks.mobile_pick_task import MobilePickTask
+from tasks.active_vision_task import ActiveVisionTask
 
 _task_registry: Dict[str, Type[BaseTask]] = {}
 
@@ -44,3 +45,4 @@ register_task("OpenTransportPour", OpenTransportPourTask)
 register_task("LiquidMixing", LiquidMixing)
 register_task("navigation", NavigationTask)
 register_task("mobile_pick", MobilePickTask)
+register_task("active_vision", ActiveVisionTask)

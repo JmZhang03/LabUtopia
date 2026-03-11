@@ -65,24 +65,32 @@ def main():
     else:
         save_video = True
         show_video = True
-
-    robot = create_robot(
-        cfg.robot.type,
-        position=np.array(cfg.robot.position)
-    )
-
-    # robots = []
-    # for i, r_cfg in enumerate(cfg.robots):
-    #     prim_path = r_cfg.get("prim_path", f"/World/Robot_{i}")
-    #     name = r_cfg.get("name", f"robot_{i}")
-    #     robot = create_robot(
-    #         r_cfg.type,
-    #         prim_path=prim_path,
-    #         name=name,
-    #         position=np.array(r_cfg.position)
-    #     )
-    #     robots.append(robot)
-    # robot = robots[0]
+    
+    # whether to use multiple robots
+    multi_robots_mode = OmegaConf.is_list(cfg.robot)
+    
+    if multi_robots_mode:
+        print("[Main] Running in Multi-Robot Mode.")
+        robot = []
+        for i, r_cfg in enumerate(cfg.robot):
+            prim_path = r_cfg.get("prim_path", f"/World/Robot_{i}")
+            name = r_cfg.get("name", f"robot_{i}")
+            single_robot = create_robot(
+                r_cfg.type,
+                prim_path=prim_path,
+                name=name,
+                position=np.array(r_cfg.position)
+            )
+            robot.append(single_robot)
+        assert len(robot) == 2  # Currently only use 2 robots
+        robot_op = robot[0]     # First for operation
+        robot_obs = robot[1]    # Second for observation
+    else:
+        print("[Main] Running in Single-Robot Mode.")
+        robot = create_robot(
+            cfg.robot.type,
+            position=np.array(cfg.robot.position)
+        )
     
     stage = omni.usd.get_context().get_stage()
     add_reference_to_stage(usd_path=os.path.abspath(cfg.usd_path), prim_path="/World")
@@ -134,7 +142,13 @@ def main():
             
             action, done, is_success = task_controller.step(state)
             if action is not None:
-                robot.get_articulation_controller().apply_action(action)
+                if multi_robots_mode:
+                    assert isinstance(action, (list, tuple))  # Need contoller to divide actions
+                    for i, act in enumerate(action):
+                            if act is not None:
+                                robot[i].get_articulation_controller().apply_action(act)
+                else:
+                    robot.get_articulation_controller().apply_action(action)
             if done:
                 task.on_task_complete(is_success)
                 continue

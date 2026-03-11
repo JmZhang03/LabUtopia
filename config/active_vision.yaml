@@ -1,7 +1,10 @@
-name: Level1_pick
+name: Active_vision
 
-task_type: "pick"
-controller_type: "pick"
+task_type: "active_vision"
+controller_type: "active_vision"
+
+sub_task_type: "pick"
+sub_controller_type: "pick"
 
 mode: "collect"
 
@@ -54,8 +57,15 @@ cameras:
     image_type: "rgb"
 
 robot:
-  type: "franka"
-  position: [-0.4, -0, 0.71]
+  - prim_path: "/World/Franka"
+    name: "franka"
+    type: "franka"
+    position: [-0.4, -0, 0.71]
+
+  - prim_path: "/World/Ridgebase"
+    name: "ridgebase"
+    type: "ridgebase"
+    position: [2, 2, 0.8]
 
 collector:
   type: "default"
