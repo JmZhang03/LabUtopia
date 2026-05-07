@@ -1,7 +1,7 @@
 name: open
 
 image_shape: [3, 256, 256]
-dataset_path: outputs/collect/2025.07.26/01.31.09_Level1_pick_other_material/dataset
+dataset_path: outputs/collect/All/Level1_pick/dataset
 obs_keys: &obs_keys ['camera_1_rgb', 'camera_2_rgb', 'agent_pose']
 
 shape_meta: &shape_meta

@@ -25,7 +25,7 @@ class LocalModelInferenceEngine(BaseInferenceEngine):
     def _init_inference_engine(self):
         """Initialize local model inference engine"""
         # Load model checkpoint
-        self.checkpoint = torch.load(self.cfg.infer.policy_model_path, map_location=self.device)
+        self.checkpoint = torch.load(self.cfg.infer.policy_model_path, map_location=self.device, weights_only=False)
         
         # Load configuration
         self.config = OmegaConf.load(self.cfg.infer.policy_config_path)
@@ -34,15 +34,15 @@ class LocalModelInferenceEngine(BaseInferenceEngine):
         self.policy = hydra.utils.instantiate(self.config.policy)
         
         # Process state_dict for multi-GPU training
-        state_dict = self.checkpoint['state_dict']
-        new_state_dict = {}
-        for k, v in state_dict.items():
-            if k.startswith('model.'):
-                new_state_dict[k[6:]] = v  # Remove 'model.' prefix
-            else:
-                new_state_dict[k] = v
-            if "ema" in k:
-                del new_state_dict[k]
+        state_dict = self.checkpoint['state_dicts']['model']
+        new_state_dict = state_dict # {}
+        # for k, v in state_dict.items():
+        #     if k.startswith('model.'):
+        #         new_state_dict[k[6:]] = v  # Remove 'model.' prefix
+        #     else:
+        #         new_state_dict[k] = v
+        #     if "ema" in k:
+        #         del new_state_dict[k]
                 
         self.policy.load_state_dict(new_state_dict)
         self.policy.eval()

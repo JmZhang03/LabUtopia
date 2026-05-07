@@ -98,7 +98,7 @@ def main():
     ObjectUtils.get_instance(stage)
     
     task = create_task(
-        cfg.task_type,
+        cfg.task_type if not multi_robots_mode else "active_vision",
         cfg=cfg,
         world=world,
         stage=stage,
@@ -106,7 +106,7 @@ def main():
     )
     
     task_controller = create_controller(
-        cfg.controller_type,
+        cfg.controller_type if not multi_robots_mode else "active_vision",
         cfg=cfg,
         robot=robot,
     )

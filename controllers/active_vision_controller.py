@@ -66,8 +66,10 @@ class ActiveVisionController(BaseController):
         
         # Some joints wave simply.
         action = np.zeros(self.robot_obs.num_dof)
-        action[0] = 0.1 * np.sin(self.frame_idx * 0.1)
-        action[5] = 0.2 * np.sin(self.frame_idx * 0.1) 
+        action[3] = 0.2 * np.sin(self.frame_idx * 0.1) 
+        action[4] = 0.2 * np.sin(self.frame_idx * 0.1) 
+        action[5] = 0.1 * np.sin(self.frame_idx * 0.1) 
+        action[6] = 0.1 * np.sin(self.frame_idx * 0.1)
         return ArticulationAction(joint_positions=action)
 
     def _init_collect_mode(self, cfg, robot):

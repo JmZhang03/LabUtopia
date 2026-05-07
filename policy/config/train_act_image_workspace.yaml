@@ -2,7 +2,7 @@ defaults:
   - _self_
   - task: act
 
-name: train_act_image_pick
+name: train_act
 _target_: policy.workspace.train_act_image_workspace.TrainACTImageWorkspace
 
 task_name: ${task.name}
@@ -39,7 +39,7 @@ policy:
   masks: False
   backbone: "resnet18"
   dilation: False
-  camera_names: [camera_0, camera_1]
+  camera_names: [camera_1_rgb, camera_2_rgb]
   horizon: ${horizon}
   n_action_steps: ${eval:'${n_action_steps}+${n_latency_steps}'}
   n_obs_steps: ${n_obs_steps}
@@ -90,7 +90,7 @@ training:
   # optimization
   lr_scheduler: cosine
   lr_warmup_steps: 500
-  num_epochs: 500
+  num_epochs: 300
   batch_size: 64
   lr: 1e-4
   gradient_accumulate_every: 1
@@ -124,7 +124,12 @@ checkpoint:
   k: 5
   format_str: '{epoch:04d}-{val_loss:.4f}.ckpt'
   save_last_ckpt: True
+  save_last_snapshot: False
   every_n_epochs: 30
+  topk:
+    monitor_key: val_loss
+    mode: min
+    k: 5
 
 multi_run:
   run_dir: outputs/train/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}

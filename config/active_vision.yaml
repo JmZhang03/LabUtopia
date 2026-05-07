@@ -30,31 +30,53 @@ task:
   obj_paths:
     - path: "/World/conical_bottle02"
       position_range:
-        x: [0.21, 0.36]
-        y: [-0.08, 0.08]
+        x: [0.15, 0.25]
+        y: [-0.35, -0.45]
+        z: [0.8, 0.8]
+    
+    - path: "/World/DryingBox_01" # beaker1
+      position_range:
+        x: [0.25, 0.25]
+        y: [0.1, 0.1]
         z: [0.80, 0.80]
 
 cameras:
-  - prim_path: "/World/Camera1"
-    name: "camera_1"
-    translation: [2, 0, 2]
-    resolution: [256, 256]
-    focal_length: 6
-    orientation: [0.61237, 0.35355, 0.35355, 0.61237]
-    image_type: "rgb"
+  # - prim_path: "/World/Camera1"
+  #   name: "ext_camera_1"
+  #   translation: [2, 0, 2]
+  #   resolution: [256, 256]
+  #   focal_length: 6
+  #   orientation: [0.61237, 0.35355, 0.35355, 0.61237]
+  #   image_type: "rgb"
 
   - prim_path: "/World/Camera2"
-    name: "camera_2"
-    translation: [0.1, 0, 2.5]
+    name: "ext_camera_2"
+    translation: [0.1, 0.25, 5.3]
     resolution: [256, 256]
     focal_length: 6
     orientation: [0.70711, 0, 0, -0.70711]
     image_type: "rgb"
 
   - prim_path: "/World/Franka/panda_hand/arm_camera"
-    name: "camera_3"
+    name: "op_camera"
     resolution: [256, 256]
     image_type: "rgb"
+  
+  # - prim_path: "/World/Ridgebase/base_link/Camera"
+  #   name: "obs_front_camera"
+  #   resolution: [256, 256]
+  #   image_type: "rgb"
+
+  - prim_path: "/World/Ridgebase/panda_hand/Camera"
+    name: "obs_wrist_camera"
+    resolution: [256, 256]
+    clipping_range: [0, 10.0]
+    image_type: "rgb"
+  
+  # - prim_path: "/World/Ridgebase/base_link/Camera_01"
+  #   name: "obs_top_camera"
+  #   resolution: [256, 256]
+  #   image_type: "rgb"
 
 robot:
   - prim_path: "/World/Franka"
@@ -65,7 +87,7 @@ robot:
   - prim_path: "/World/Ridgebase"
     name: "ridgebase"
     type: "ridgebase"
-    position: [2, 2, 0.8]
+    position: [-0.4, -2, 0.8]
 
 collector:
   type: "default"

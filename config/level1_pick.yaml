@@ -3,7 +3,7 @@ name: Level1_pick
 task_type: "pick"
 controller_type: "pick"
 
-mode: "collect"
+mode: "infer"
 
 usd_path: "assets/chemistry_lab/lab_001/lab_001.usd"
 
@@ -13,14 +13,15 @@ max_episodes: 10
 infer:
   type: "local"
   obs_names: {"camera_1_rgb": 'camera_1_rgb', "camera_2_rgb": 'camera_2_rgb'}
-  policy_model_path: ""
-  policy_config_path: ""
-  normalizer_path: ""
   host: "127.0.0.1"
   port: 8000
   n_obs_steps: 1
   timeout: 30
   max_retries: 3
+
+  policy_model_path: "outputs/train/2026.04.14/22.53.07_train_act_image_pick_open/checkpoints/epoch=060-train_loss=0.020.ckpt"
+  policy_config_path: "outputs/train/2026.04.14/22.53.07_train_act_image_pick_open/.hydra/config.yaml"
+  normalizer_path: "outputs/train/2026.04.14/22.53.07_train_act_image_pick_open/checkpoints/normalize.ckpt"
 
 task:
   max_steps: 800

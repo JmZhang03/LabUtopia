@@ -2,7 +2,7 @@ defaults:
   - _self_
   - task: dp
 
-name: train_diffusion_unet_image
+name: train_diffusion_unet
 _target_: policy.workspace.train_diffusion_unet_image_workspace.TrainDiffusionUnetImageWorkspace
 
 task_name: ${task.name}
@@ -66,14 +66,14 @@ ema:
   max_value: 0.9999
 
 dataloader:
-  batch_size: 196
-  num_workers: 8
+  batch_size: 64
+  num_workers: 0
   shuffle: True
   pin_memory: True
   persistent_workers: False
 
 val_dataloader:
-  batch_size: 196
+  batch_size: 64
   num_workers: 8
   shuffle: False
   pin_memory: True
@@ -102,9 +102,9 @@ training:
   freeze_encoder: False
   # training loop control
   # in epochs
-  checkpoint_every: 40
-  val_every: 10
-  sample_every: 5
+  checkpoint_every: 30
+  val_every: 15
+  sample_every: 15
   # steps per epoch
   max_train_steps: null
   max_val_steps: null
@@ -126,7 +126,12 @@ checkpoint:
   k: 5
   format_str: '{epoch:04d}-{val_loss:.4f}.ckpt'
   save_last_ckpt: True
+  save_last_snapshot: False
   every_n_epochs: 30
+  topk:
+    monitor_key: val_loss
+    mode: min
+    k: 5
 
 multi_run:
   run_dir: outputs/train/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}

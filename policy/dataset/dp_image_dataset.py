@@ -37,59 +37,43 @@ class DPImageDataset(BaseImageDataset):
         self.delta_action = delta_action
         self.episode_map = []
         self.in_memory = in_memory
-        h5_path = os.path.join(dataset_path, "episode_data.hdf5")
-        self.h5_file = h5py.File(h5_path, 'r')
-        self.episode_ids = list(self.h5_file.keys())
         self.camera_names = ['camera_1', 'camera_2']
         self.horizon = horizon
         self.n_obs_steps = n_obs_steps
         
+        # only support multi-h5 episodes
+        h5_files = sorted(glob.glob(os.path.join(dataset_path, "*.h5")))
+        assert len(h5_files) > 0, f"No h5 files found in {dataset_path}"
+
+        self.h5_file = {}
+        self.episode_map = []
         self.memory_data = {} if self.in_memory else None
-        
-        h5_files = glob.glob(os.path.join(dataset_path, "*.h5"))
-        if not h5_files:
-            h5_path = os.path.join(dataset_path, "episode_data.hdf5")
-            self.h5_file = h5py.File(h5_path, 'r')
-            for episode_name in self.h5_file.keys():
-                n_frames = self.h5_file[episode_name]['actions'].shape[0]
-                self.episode_map.append((
-                    episode_name,
-                    n_frames
-                ))
-                if self.in_memory:
-                    episode = self.h5_file[episode_name]
-                    self.memory_data[episode_name] = {
-                        'camera_1_rgb': episode['camera_1_rgb'][:],
-                        'camera_2_rgb': episode['camera_2_rgb'][:],
-                        'agent_pose': episode['agent_pose'][:],
-                        'actions': episode['actions'][:]
-                    }
-        else:
-            self.h5_file = {}
-            for i in h5_files:
-                h5_file = h5py.File(i, 'r')
-                episode_name = os.path.splitext(os.path.basename(i))[0]
-                self.h5_file[os.path.basename(i)] = h5_file
-                n_frames = h5_file['actions'].shape[0]
-                self.episode_map.append((
-                    episode_name,
-                    n_frames
-                ))
-                if self.in_memory:
-                    self.memory_data[episode_name] = {
-                        'camera_1_rgb': h5_file['camera_1_rgb'][:],
-                        'camera_2_rgb': h5_file['camera_2_rgb'][:],
-                        'agent_pose': h5_file['agent_pose'][:],
-                        'actions': h5_file['actions'][:]
-                    }
-        
+
+        for h5_path in h5_files:
+            episode_name = os.path.splitext(os.path.basename(h5_path))[0]
+            h5_file = h5py.File(h5_path, 'r')
+
+            self.h5_file[episode_name] = h5_file
+
+            n_frames = h5_file['actions'].shape[0]
+            self.episode_map.append((episode_name, n_frames))
+
+            if self.in_memory:
+                self.memory_data[episode_name] = {
+                    'camera_1_rgb': h5_file['camera_1_rgb'][:],
+                    'camera_2_rgb': h5_file['camera_2_rgb'][:],
+                    'agent_pose': h5_file['agent_pose'][:],
+                    'actions': h5_file['actions'][:]
+                }
+
+        self.episode_ids = [x[0] for x in self.episode_map]
         
         self.sequences = []
         for episode_name, n_frames in self.episode_map:
             total_steps = n_frames
-            if self.horizon is not None and self.n_obs_steps is not None:
-                total_steps = n_frames - (self.horizon + self.n_obs_steps) + 1
-            for start_idx in range(total_steps):
+
+            # for start_idx in range(total_steps):
+            for start_idx in range(max(0, total_steps - self.horizon + 1)):
                 self.sequences.append((episode_name, start_idx))
 
     def __len__(self) -> int:
