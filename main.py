@@ -1,4 +1,5 @@
 import os
+import math
 import argparse
 from isaacsim import SimulationApp
 
@@ -16,6 +17,8 @@ def parse_args():
                        help='Configuration file name (without .yaml extension)')
     parser.add_argument('--config-dir', type=str, default='config',
                        help='Configuration directory path (default: config)')
+    parser.add_argument('--use-vr', action='store_true', 
+                       help='Enable VR teleoperation mode')
     return parser.parse_args()
 
 # Get command line arguments
@@ -43,6 +46,11 @@ from factories.robot_factory import create_robot
 from lab_utils.object_utils import ObjectUtils
 from factories.task_factory import create_task
 from factories.controller_factory import create_controller
+
+from quest.webrtc_headset import WebRTCHeadset
+from quest.headset_control import HeadsetOurControl
+from omni.isaac.core.utils.types import ArticulationAction
+from robots.franka.rmpflow_controller import RMPFlowController
 
 def main():
     hydra.initialize(config_path=args.config_dir, job_name=args.config_name)
@@ -111,17 +119,44 @@ def main():
         robot=robot,
     )
     
+    # VR Initialize
+    if args.use_vr:
+        assert multi_robots_mode is True
+        print("[VR] Initializing VR connection...")
+        headset = WebRTCHeadset()
+        ctrl = HeadsetOurControl(wxyz=False)
+        headset.run_in_thread()
+        is_calibrated = False
+        vr_connected = False
+
+        # Prepare RMPFlow Controller
+        op_rmp_controller = task_controller.rmp_controller
+        obs_rmp_controller = RMPFlowController(name="obs_rmp_controller",
+                                               robot_articulation=robot_obs)
+        task.reset()
+        op_default_joints = robot_op.get_joint_positions()   # (9,)
+        obs_default_joints = robot_obs.get_joint_positions() # (12,)
+        obs_base_default = obs_default_joints[:3]
+        # print(f"obs joint positions shape: {obs_default_joints.shape}")
+        # print(obs_default_joints)
+        print("[VR] Waiting for headset connection...")
+
     video_writer = None
     task.reset()
+    # test_step_counter = 0
     
     while simulation_app.is_running():
-        world.step(render=True)
-        
-        if world.is_stopped():
-            task_controller.reset_needed = True
-            
+        world.step(render=True)                    
+
         if world.is_playing():
             if task_controller.need_reset() or task.need_reset():
+                if args.use_vr: # and not vr_connected:
+                    task_controller.reset_needed = False
+                    task.reset_needed = False
+                    continue
+                    # TODO: controller reset logic
+                    # controller._last_success
+
                 if video_writer is not None:
                     video_writer.release()
                     video_writer = None
@@ -133,6 +168,9 @@ def main():
                     cv2.destroyAllWindows()
                     break
                 task.reset()
+
+                if args.use_vr:
+                    is_calibrated = False
                 
                 continue
                 
@@ -140,18 +178,123 @@ def main():
             if state is None:
                 continue
             
-            action, done, is_success = task_controller.step(state)
-            if action is not None:
-                if multi_robots_mode:
-                    assert isinstance(action, (list, tuple))  # Need contoller to divide actions
-                    for i, act in enumerate(action):
-                            if act is not None:
-                                robot[i].get_articulation_controller().apply_action(act)
-                else:
-                    robot.get_articulation_controller().apply_action(action)
-            if done:
-                task.on_task_complete(is_success)
-                continue
+            # VR Data Collection
+            if args.use_vr:
+                data = headset.receive_data()
+
+                if not vr_connected:
+                    if data is not None:
+                        vr_connected = True
+                        print("[VR] Headset Connected! Press A button to calibrate.")
+                    else:
+                        # don't move
+                        robot_op.get_articulation_controller().apply_action(
+                            ArticulationAction(joint_positions=list(op_default_joints))
+                        )
+                        robot_obs.get_articulation_controller().apply_action(
+                            ArticulationAction(joint_positions=list(obs_default_joints))
+                        )
+                        continue
+                
+                if not is_calibrated:
+                    robot_op.get_articulation_controller().apply_action(
+                        ArticulationAction(joint_positions=list(op_default_joints))
+                    )
+                    robot_obs.get_articulation_controller().apply_action(
+                        ArticulationAction(joint_positions=list(obs_default_joints))
+                    )
+
+                    if data is not None and data.r_button_one:
+                        print(">>> START CALIBRATION...")
+                        
+                        # Get robots ee_pose
+                        ee_pos_op = robot_op.get_gripper_position()
+                        ee_quat_op = robot_op.get_gripper_orientation()
+                        ee_quat_op_xyzw = np.array([ee_quat_op[1], ee_quat_op[2], ee_quat_op[3], ee_quat_op[0]])
+
+                        ee_pos_obs = robot_obs.get_gripper_position()
+                        ee_quat_obs = robot_obs.get_gripper_orientation()
+                        ee_quat_obs_xyzw = np.array([ee_quat_obs[1], ee_quat_obs[2], ee_quat_obs[3], ee_quat_obs[0]])
+                        
+                        op_pose = np.concatenate([ee_pos_op, ee_quat_op_xyzw])
+                        obs_pose = np.concatenate([ee_pos_obs, ee_quat_obs_xyzw])
+
+                        ctrl.start(data, op_pose, obs_pose)
+                        is_calibrated = True
+                        print("[VR] >>> CALIBRATION DONE!")
+                        
+                        continue
+
+                # VR Data Transformation 
+                if data is not None: 
+                    ee_pos_op = robot_op.get_gripper_position()
+                    ee_quat_op = robot_op.get_gripper_orientation()
+                    ee_quat_op_xyzw = np.array([ee_quat_op[1], ee_quat_op[2], ee_quat_op[3], ee_quat_op[0]])
+                    op_pose = np.concatenate([ee_pos_op, ee_quat_op_xyzw])
+
+                    ee_pos_obs = robot_obs.get_gripper_position()
+                    ee_quat_obs = robot_obs.get_gripper_orientation()
+                    ee_quat_obs_xyzw = np.array([ee_quat_obs[1], ee_quat_obs[2], ee_quat_obs[3], ee_quat_obs[0]])
+                    obs_pose = np.concatenate([ee_pos_obs, ee_quat_obs_xyzw])
+
+                    # Get Target Action
+                    action, feedback = ctrl.run(data, op_pose, obs_pose)
+                    # print(action)
+
+                    # if feedback.right_out_of_sync:
+                    #     raise RuntimeError("Warning: Right Arm Out of Sync!")
+
+                    target_op_pos = action[0:3]
+                    target_op_quat = action[3:7] # xyzw
+                    target_op_gripper = action[7]
+                    
+                    target_obs_pos = action[8:11]
+                    target_obs_quat = action[11:15]
+
+                    target_op_quat_wxyz = np.array([target_op_quat[3], target_op_quat[0], 
+                                                    target_op_quat[1], target_op_quat[2]])
+                    target_obs_quat_wxyz = np.array([target_obs_quat[3], target_obs_quat[0], 
+                                                        target_obs_quat[1], target_obs_quat[2]])
+
+                    target_op_joints = op_rmp_controller.forward(target_op_pos, target_op_quat_wxyz)
+                    target_obs_joints = obs_rmp_controller.forward(target_obs_pos, target_obs_quat_wxyz)
+
+                    op_gripper_val = 0.04 * (1.0 - target_op_gripper)
+
+                    # Apply Articulation Action
+                    op_action = ArticulationAction(
+                        joint_positions=list(target_op_joints.joint_positions) + [op_gripper_val, op_gripper_val]
+                    )
+                    obs_action = ArticulationAction(
+                        joint_positions=list(obs_base_default) + list(target_obs_joints.joint_positions) + [0.04, 0.04]
+                    )
+                    
+                    # Test Actions
+                    # test_step_counter += 1
+                    # op_test_joints = list(op_default_joints)
+                    # op_test_joints[1] += 0.4 * math.sin(test_step_counter * 0.02)
+                    # op_action = ArticulationAction(joint_positions=op_test_joints)
+
+                    # obs_test_joints = list(obs_default_joints)
+                    # obs_test_joints[4] += 0.4 * math.sin(test_step_counter * 0.02)
+                    # obs_action = ArticulationAction(joint_positions=obs_test_joints)
+
+                    robot_op.get_articulation_controller().apply_action(op_action)
+                    robot_obs.get_articulation_controller().apply_action(obs_action)
+
+            else:
+                action, done, is_success = task_controller.step(state)
+                if action is not None:
+                    if multi_robots_mode:
+                        assert isinstance(action, (list, tuple))  # Need contoller to divide actions
+                        for i, act in enumerate(action):
+                                if act is not None:
+                                    robot[i].get_articulation_controller().apply_action(act)
+                    else:
+                        robot.get_articulation_controller().apply_action(action)
+                if done:
+                    task.on_task_complete(is_success)
+                    continue
             
             if save_video or show_video:
                 camera_images = []

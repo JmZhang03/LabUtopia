@@ -3,6 +3,7 @@ import numpy as np
 from isaacsim.core.api.robots.robot import Robot
 from isaacsim.core.utils.prims import get_prim_at_path
 from isaacsim.core.utils.stage import add_reference_to_stage
+from lab_utils.object_utils import ObjectUtils
 
 
 class Ridgebase(Robot):
@@ -86,8 +87,16 @@ class Ridgebase(Robot):
         Returns:
             np.ndarray: The gripper position
         """
-        from lab_utils.object_utils import ObjectUtils
         return ObjectUtils.get_instance().get_object_xform_position(
             object_path=self.prim_path_str + "/panda_hand/tool_center"
         )
 
+    def get_gripper_orientation(self) -> np.ndarray:
+        """[summary]
+
+        Returns:
+            np.ndarray: [description]
+        """
+        return ObjectUtils.get_instance().get_object_xform_orientation(
+                object_path=self.prim_path_str + "/panda_hand/tool_center"
+            )

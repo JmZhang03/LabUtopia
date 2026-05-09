@@ -3,12 +3,12 @@ name: Level1_pick
 task_type: "pick"
 controller_type: "pick"
 
-mode: "infer"
+mode: "collect"
 
 usd_path: "assets/chemistry_lab/lab_001/lab_001.usd"
 
 
-max_episodes: 10
+max_episodes: 50
 
 infer:
   type: "local"

@@ -86,6 +86,19 @@ class ObjectUtils:
         position = transform.ExtractTranslation()
         return np.array(position)
     
+    def get_object_xform_orientation(self, object_path: str) -> np.ndarray:
+        """Get the world-space orientation from the object's transform."""
+        prim = self._stage.GetPrimAtPath(object_path)
+        if not prim.IsValid():
+            print(f"Object at path {object_path} not found.")
+            return None
+
+        xformable = UsdGeom.Xformable(prim)
+        transform = xformable.ComputeLocalToWorldTransform(Usd.TimeCode.Default())
+        quat = transform.ExtractRotationQuat()
+        return np.array([quat.GetReal(), quat.GetImaginary()[0], 
+                         quat.GetImaginary()[1], quat.GetImaginary()[2]])
+    
     def set_object_position(self, object_path: str, position: np.ndarray, local_position: np.ndarray = None, position_offset: np.ndarray = None) -> None:
         """Set the object's position in world or local space."""
         prim = self._stage.GetPrimAtPath(object_path)

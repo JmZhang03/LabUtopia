@@ -1,7 +1,7 @@
 name: dp_pick
 
 image_shape: [3, 256, 256]
-dataset_path: outputs/collect/All/Level1_place/dataset
+dataset_path: outputs/collect/pick/dataset
 obs_keys: &obs_keys ['camera_1_rgb', 'camera_2_rgb', 'agent_pose']
 
 shape_meta: &shape_meta

@@ -199,3 +199,13 @@ class Franka(Robot):
         return ObjectUtils.get_instance().get_object_xform_position(
                 object_path=self.prim_path_str + "/panda_hand/tool_center"
             )
+    
+    def get_gripper_orientation(self) -> np.ndarray:
+        """[summary]
+
+        Returns:
+            np.ndarray: [description]
+        """
+        return ObjectUtils.get_instance().get_object_xform_orientation(
+                object_path=self.prim_path_str + "/panda_hand/tool_center"
+            )
