@@ -124,13 +124,21 @@ def main():
         assert multi_robots_mode is True
         print("[VR] Initializing VR connection...")
         headset = WebRTCHeadset()
-        ctrl = HeadsetOurControl(wxyz=False)
+        ctrl = HeadsetOurControl()
         headset.run_in_thread()
-        is_calibrated = False
         vr_connected = False
+        is_calibrated = False
+        ask_for_calibrate = False
+        last_r_button_one = False
+        last_r_thumbstick = False
+        vr_reset_needed = False
+        final_joint_positions = None
+        test_step_counter = 0
 
         # Prepare RMPFlow Controller
-        op_rmp_controller = task_controller.rmp_controller
+        # op_rmp_controller = task_controller.rmp_controller
+        op_rmp_controller = RMPFlowController(name="op_rmp_controller",
+                                               robot_articulation=robot_op)
         obs_rmp_controller = RMPFlowController(name="obs_rmp_controller",
                                                robot_articulation=robot_obs)
         task.reset()
@@ -143,19 +151,27 @@ def main():
 
     video_writer = None
     task.reset()
-    # test_step_counter = 0
     
     while simulation_app.is_running():
         world.step(render=True)                    
 
         if world.is_playing():
             if task_controller.need_reset() or task.need_reset():
-                if args.use_vr: # and not vr_connected:
+                if args.use_vr and not vr_reset_needed:
                     task_controller.reset_needed = False
                     task.reset_needed = False
                     continue
-                    # TODO: controller reset logic
-                    # controller._last_success
+                
+                if args.use_vr:
+                    if task_controller._last_success:
+                        task_controller.data_collector.write_cached_data(final_joint_positions)
+                    else:
+                        task_controller.data_collector.clear_cache()
+                    task.on_task_complete(task_controller._last_success)
+                    is_calibrated = False
+                    last_r_button_one = False
+                    last_r_thumbstick = False
+                    vr_reset_needed = False
 
                 if video_writer is not None:
                     video_writer.release()
@@ -168,9 +184,6 @@ def main():
                     cv2.destroyAllWindows()
                     break
                 task.reset()
-
-                if args.use_vr:
-                    is_calibrated = False
                 
                 continue
                 
@@ -185,7 +198,7 @@ def main():
                 if not vr_connected:
                     if data is not None:
                         vr_connected = True
-                        print("[VR] Headset Connected! Press A button to calibrate.")
+                        print("[VR] Headset Connected!")
                     else:
                         # don't move
                         robot_op.get_articulation_controller().apply_action(
@@ -197,6 +210,10 @@ def main():
                         continue
                 
                 if not is_calibrated:
+                    if not ask_for_calibrate:
+                        print("[VR] Press A button to calibrate!")
+                        ask_for_calibrate = True
+
                     robot_op.get_articulation_controller().apply_action(
                         ArticulationAction(joint_positions=list(op_default_joints))
                     )
@@ -204,8 +221,8 @@ def main():
                         ArticulationAction(joint_positions=list(obs_default_joints))
                     )
 
-                    if data is not None and data.r_button_one:
-                        print(">>> START CALIBRATION...")
+                    if data is not None and data.r_button_one and not last_r_button_one:
+                        print("[VR] >>> START CALIBRATION...")
                         
                         # Get robots ee_pose
                         ee_pos_op = robot_op.get_gripper_position()
@@ -218,28 +235,48 @@ def main():
                         
                         op_pose = np.concatenate([ee_pos_op, ee_quat_op_xyzw])
                         obs_pose = np.concatenate([ee_pos_obs, ee_quat_obs_xyzw])
-
-                        ctrl.start(data, op_pose, obs_pose)
-                        is_calibrated = True
-                        print("[VR] >>> CALIBRATION DONE!")
                         
-                        continue
+                        # Pass strictly xyzw into VR controller
+                        ctrl.start(data, op_pose, obs_pose)
+                        print("[VR] >>> CALIBRATION DONE!")
+
+                        is_calibrated = True
+                        ask_for_calibrate = False
+                        last_r_button_one = data.r_button_one
+                    
+                    continue
 
                 # VR Data Transformation 
                 if data is not None: 
-                    ee_pos_op = robot_op.get_gripper_position()
-                    ee_quat_op = robot_op.get_gripper_orientation()
-                    ee_quat_op_xyzw = np.array([ee_quat_op[1], ee_quat_op[2], ee_quat_op[3], ee_quat_op[0]])
-                    op_pose = np.concatenate([ee_pos_op, ee_quat_op_xyzw])
+                    # Record Data
+                    if 'camera_data' in state:
+                        task_controller.data_collector.cache_step(
+                            camera_images=state['camera_data'],
+                            # Concat joint states
+                            joint_angles=np.concatenate([
+                                state['joint_positions_op'][:-1], 
+                                state['joint_positions_obs'][:-1]
+                            ]),
+                        )
+                    
+                    # Calculate Actions
+                    # ee_pos_op = robot_op.get_gripper_position()
+                    # ee_quat_op = robot_op.get_gripper_orientation()
+                    # ee_quat_op_xyzw = np.array([ee_quat_op[1], ee_quat_op[2], ee_quat_op[3], ee_quat_op[0]])
+                    # op_pose = np.concatenate([ee_pos_op, ee_quat_op_xyzw])
 
-                    ee_pos_obs = robot_obs.get_gripper_position()
-                    ee_quat_obs = robot_obs.get_gripper_orientation()
-                    ee_quat_obs_xyzw = np.array([ee_quat_obs[1], ee_quat_obs[2], ee_quat_obs[3], ee_quat_obs[0]])
-                    obs_pose = np.concatenate([ee_pos_obs, ee_quat_obs_xyzw])
+                    # ee_pos_obs = robot_obs.get_gripper_position()
+                    # ee_quat_obs = robot_obs.get_gripper_orientation()
+                    # ee_quat_obs_xyzw = np.array([ee_quat_obs[1], ee_quat_obs[2], ee_quat_obs[3], ee_quat_obs[0]])
+                    # obs_pose = np.concatenate([ee_pos_obs, ee_quat_obs_xyzw])
 
                     # Get Target Action
-                    action, feedback = ctrl.run(data, op_pose, obs_pose)
-                    # print(action)
+                    action = ctrl.run(data)
+                    # action, feedback = ctrl.run(data, op_pose, obs_pose)
+                    if action is None:
+                        continue
+                    # print(f"Op Target Pos: {action[0:3]}, Obs Target Pos: {action[8:11]}")
+                    # print(f"Op Target Quat: {action[3:7]}, Obs Target Quat: {action[11:15]}")
 
                     # if feedback.right_out_of_sync:
                     #     raise RuntimeError("Warning: Right Arm Out of Sync!")
@@ -281,6 +318,29 @@ def main():
 
                     robot_op.get_articulation_controller().apply_action(op_action)
                     robot_obs.get_articulation_controller().apply_action(obs_action)
+                    
+                    # Mark Task Complete: Success
+                    if data.r_button_one and not last_r_button_one:
+                        print("[VR] Task Marked as SUCCESS!")
+                        task_controller._last_success = True 
+                        vr_reset_needed = True
+                        task.reset_needed = True
+                        task_controller.reset_needed = True
+                        final_joint_positions = np.concatenate([
+                            state['joint_positions_op'][:-1], 
+                            state['joint_positions_obs'][:-1]
+                        ])
+
+                    # Mark Task Complete: Failed
+                    if data.r_button_thumbstick and not last_r_thumbstick:
+                        print("[VR] Task Marked as FAILED!")
+                        task_controller._last_success = False
+                        vr_reset_needed = True
+                        task.reset_needed = True 
+                        task_controller.reset_needed = True
+
+                    last_r_button_one = data.r_button_one
+                    last_r_thumbstick = data.r_button_thumbstick
 
             else:
                 action, done, is_success = task_controller.step(state)

@@ -125,6 +125,7 @@ class WebRTCHeadset:
         self.send_data_freq = send_data_freq
         self.receive_data_queue = queue.Queue(maxsize=data_buffer_size)
         self.send_data_queue = queue.Queue(maxsize=data_buffer_size)
+        self.receive_last_data = None
 
         self.thread = None
         self.event_loop = None
@@ -161,11 +162,12 @@ class WebRTCHeadset:
         从接收缓冲区获取从控制端发来的最新一帧头显数据。
         如果当前没有数据，则返回 None。
         """
-        try:
-            data = self.receive_data_queue.get_nowait()
-            return data
-        except queue.Empty:
-            return None
+        return self.receive_last_data
+        # try:
+        #     data = self.receive_data_queue.get_nowait()
+        #     return data
+        # except queue.Empty:
+        #     return None
     
     def send_images(self, left_image: np.ndarray, right_image: np.ndarray):
         """
@@ -261,6 +263,8 @@ class WebRTCHeadset:
             print("[RobotWebRTC] Key error") 
             return
 
+        self.receive_last_data = headset_data
+
         try:
             self.receive_data_queue.put_nowait(headset_data)
         except queue.Full:
@@ -279,15 +283,15 @@ class WebRTCHeadset:
             print("Data channel is open.")
         self.channel.on("message", self.on_message)       
 
-        # create video track
-        self.left_video_track = BufferVideoStreamTrack(buffer_size=self.video_buffer_size)
-        self.left_video_sender = self.pc.addTrack(self.left_video_track)
-        force_codec(self.pc, self.left_video_sender, 'video/VP8')
+        # # create video track
+        # self.left_video_track = BufferVideoStreamTrack(buffer_size=self.video_buffer_size)
+        # self.left_video_sender = self.pc.addTrack(self.left_video_track)
+        # force_codec(self.pc, self.left_video_sender, 'video/VP8')
 
-        # create video track
-        self.right_video_track = BufferVideoStreamTrack(buffer_size=self.video_buffer_size)
-        self.right_video_sender = self.pc.addTrack(self.right_video_track)
-        force_codec(self.pc, self.right_video_sender, 'video/VP8')
+        # # create video track
+        # self.right_video_track = BufferVideoStreamTrack(buffer_size=self.video_buffer_size)
+        # self.right_video_sender = self.pc.addTrack(self.right_video_track)
+        # force_codec(self.pc, self.right_video_sender, 'video/VP8')
 
 
         # create offer and place in firestore     
@@ -414,7 +418,7 @@ if __name__ == "__main__":
     
     # 关键参数：确认你的 VR 端发来的是 Unity 标准四元数 (x,y,z,w)
     # 如果是，这里一定要设为 False，否则初始化会出错
-    ctrl = HeadsetOurControl(wxyz=False) 
+    ctrl = HeadsetOurControl() 
     
     # 虚拟机器人的当前状态 (格式: [x, y, z, qx, qy, qz, qw])
     # 假设初始位置在右前方，无旋转
@@ -452,7 +456,8 @@ if __name__ == "__main__":
                 if is_calibrated:
                     # 计算目标动作
                     # 输入：当前VR数据 + 虚拟机器人当前位姿
-                    action, feedback = ctrl.run(data, current_right_arm_pose, current_middle_arm_pose)
+                    # action, feedback = ctrl.run(data, current_right_arm_pose, current_middle_arm_pose)
+                    action = ctrl.run(data)
                     
                     # 解析 Action
                     # action 结构: [右臂pos(3), 右臂quat(4), 右臂gripper(1), 中臂pos(3), 中臂quat(4)]
@@ -473,16 +478,16 @@ if __name__ == "__main__":
                     current_middle_arm_pose = np.concatenate([target_middle_pos, target_middle_quat])
 
                      # --- 处理失步反馈 ---
-                    if feedback.right_out_of_sync:
-                        print("Warning: Right Arm Out of Sync!")
+                    # if feedback.right_out_of_sync:
+                    #     print("Warning: Right Arm Out of Sync!")
 
-                feedback_msg = HeadsetFeedback()
-                if is_calibrated:
-                    feedback_msg.info = f"Calibrated. Gripper: {action[7]:.2f}"
-                else:
-                    feedback_msg.info = "Press 'A' to Calibrate"
+                # feedback_msg = HeadsetFeedback()
+                # if is_calibrated:
+                #     feedback_msg.info = f"Calibrated. Gripper: {action[7]:.2f}"
+                # else:
+                #     feedback_msg.info = "Press 'A' to Calibrate"
                 
-                headset.send_feedback(feedback_msg)
+                # headset.send_feedback(feedback_msg)
                 
                 # d = math.sqrt(data.r_thumbstick_x**2 + data.r_thumbstick_y**2)
                 # print(f"Received data: {round(d,3)}, {data.r_thumbstick_x}, {data.r_thumbstick_y}")
