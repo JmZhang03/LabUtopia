@@ -382,47 +382,39 @@ class WebRTCHeadset:
 
 def print_headset_data_status(data: HeadsetData):
     
-    # 设置 numpy 打印格式，保留 3 位小数，去掉科学计数法
-    np.set_printoptions(precision=3, suppress=True)
-    
-    # 清屏 (Windows用cls，Linux/Mac用clear)，让输出像仪表盘一样刷新
-    # print("\033c", end="")  # 这种清屏方式在某些 IDE 里可能不生效，可以直接用 print("\n"*50)
-    
+
+    np.set_printoptions(precision=4, suppress=True)
+
     print("\n" + "="*30 + " VR DATA MONITOR " + "="*30)
     
     # 1. 头显状态
     print(f"{'[HEADSET]':<15} Pos: {data.h_pos} | Quat: {data.h_quat}")
     
-    # 2. 左手柄状态
-    print(f"{'[LEFT CTRL]':<15} Pos: {data.l_pos} | Quat: {data.l_quat}")
-    print(f"{'':<15} Stick: ({data.l_thumbstick_x:.2f}, {data.l_thumbstick_y:.2f}) | Trigger: {data.l_index_trigger:.2f}")
-    btn_l = []
-    if data.l_button_one: btn_l.append("A")
-    if data.l_button_two: btn_l.append("B")
-    if data.l_button_thumbstick: btn_l.append("Stick")
-    print(f"{'':<15} Buttons Pressed: {btn_l if btn_l else 'None'}")
+    # # 2. 左手柄状态
+    # print(f"{'[LEFT CTRL]':<15} Pos: {data.l_pos} | Quat: {data.l_quat}")
+    # print(f"{'':<15} Stick: ({data.l_thumbstick_x:.2f}, {data.l_thumbstick_y:.2f}) | Trigger: {data.l_index_trigger:.2f}")
+    # btn_l = []
+    # if data.l_button_one: btn_l.append("A")
+    # if data.l_button_two: btn_l.append("B")
+    # if data.l_button_thumbstick: btn_l.append("Stick")
+    # print(f"{'':<15} Buttons Pressed: {btn_l if btn_l else 'None'}")
 
     # 3. 右手柄状态 (重点测试对象)
     print(f"{'[RIGHT CTRL]':<15} Pos: {data.r_pos} | Quat: {data.r_quat}")
-    print(f"{'':<15} Stick: ({data.r_thumbstick_x:.2f}, {data.r_thumbstick_y:.2f}) | Trigger: {data.r_index_trigger:.2f}")
-    
-    btn_r = []
-    if data.r_button_one: btn_r.append("A")
-    if data.r_button_two: btn_r.append("B")
-    if data.r_button_thumbstick: btn_r.append("Stick")
-    print(f"{'':<15} Buttons Pressed: {btn_r if btn_r else 'None'}")
+    # print(f"{'':<15} Stick: ({data.r_thumbstick_x:.2f}, {data.r_thumbstick_y:.2f}) | Trigger: {data.r_index_trigger:.2f}")
+    # btn_r = []
+    # if data.r_button_one: btn_r.append("A")
+    # if data.r_button_two: btn_r.append("B")
+    # if data.r_button_thumbstick: btn_r.append("Stick")
+    # print(f"{'':<15} Buttons Pressed: {btn_r if btn_r else 'None'}")
     
     print("="*78)
 
 if __name__ == "__main__":
     
-    # 关键参数：确认你的 VR 端发来的是 Unity 标准四元数 (x,y,z,w)
-    # 如果是，这里一定要设为 False，否则初始化会出错
+    # xyzw
     ctrl = HeadsetOurControl() 
     
-    # 虚拟机器人的当前状态 (格式: [x, y, z, qx, qy, qz, qw])
-    # 假设初始位置在右前方，无旋转
-    # 注意：因为 wxyz=False，我们这里用 xyzw 格式存储，和控制器输入保持一致
     init_right_pose = np.array([0.5, 0.0, 0.5, 0.0, 0.0, 0.0, 1.0]) 
     init_middle_pose = np.array([0.0, 0.0, 1.6, 0.0, 0.0, 0.0, 1.0])
     
@@ -431,76 +423,38 @@ if __name__ == "__main__":
     
     is_calibrated = False
 
-    #  这里模拟一个虚拟机器人，接收头显控制数据，并给头显发送图像信息等
     try:
         headset = WebRTCHeadset()
         headset.run_in_thread()
         print("System Ready. Waiting for VR data...")
-        print("Press 'A' button (r_button_one) on the RIGHT controller to CALIBRATE.")
+        print("Press A button on the right controller to calibrate.")
         
         while True:
             
-            # 接收从“头显控制端”发送过来的用户数据（位置、角度等）
             data = headset.receive_data()
             if data is not None:
-                # print_headset_data_status(data)
+                print_headset_data_status(data)
+
                 if not is_calibrated and data.r_button_one:
                     print("\n>>> START CALIBRATION...")
-                    # 调用 start，传入初始时刻的 VR 数据 和 虚拟机器人当前位姿
-                    # 注意：HeadsetOurControl 内部会处理坐标系记录
                     ctrl.start(data, current_right_arm_pose, current_middle_arm_pose)
                     is_calibrated = True
                     print(">>> CALIBRATION DONE! You can now move the controller.")
-                    continue # 这一帧只做标定，下一帧开始控制
+                    continue
 
                 if is_calibrated:
-                    # 计算目标动作
-                    # 输入：当前VR数据 + 虚拟机器人当前位姿
-                    # action, feedback = ctrl.run(data, current_right_arm_pose, current_middle_arm_pose)
                     action = ctrl.run(data)
-                    
-                    # 解析 Action
-                    # action 结构: [右臂pos(3), 右臂quat(4), 右臂gripper(1), 中臂pos(3), 中臂quat(4)]
+                
                     target_right_pos = action[0:3]
-                    target_right_quat = action[3:7] # 注意：run() 输出的四元数是 wxyz (根据代码逻辑)
+                    target_right_quat = action[3:7]
                     target_gripper = action[7]
                     target_middle_pos = action[8:11]
                     target_middle_quat = action[11:15]
 
-                    # --- 验证逻辑 (调试用) ---
-                    # 打印看看：VR手柄移动量 vs 机器人目标移动量
-                    # print(f"Target Right Pos: {target_right_pos}")
-
-                    # 模拟机器人运动 (闭环)
-                    # 让“虚拟机器人”的当前位姿 直接等于 目标位姿
-                    # 这样下一帧 ctrl.run 就会基于这个新位姿计算
                     current_right_arm_pose = np.concatenate([target_right_pos, target_right_quat])
                     current_middle_arm_pose = np.concatenate([target_middle_pos, target_middle_quat])
-
-                     # --- 处理失步反馈 ---
-                    # if feedback.right_out_of_sync:
-                    #     print("Warning: Right Arm Out of Sync!")
-
-                # feedback_msg = HeadsetFeedback()
-                # if is_calibrated:
-                #     feedback_msg.info = f"Calibrated. Gripper: {action[7]:.2f}"
-                # else:
-                #     feedback_msg.info = "Press 'A' to Calibrate"
-                
-                # headset.send_feedback(feedback_msg)
-                
-                # d = math.sqrt(data.r_thumbstick_x**2 + data.r_thumbstick_y**2)
-                # print(f"Received data: {round(d,3)}, {data.r_thumbstick_x}, {data.r_thumbstick_y}")
-
-            # feedback = HeadsetFeedback()
-            # # 显示在头显视野中的一段信息字符
-            # feedback.info = f"Hello from python: {time.time()}"
-            # headset.send_feedback(feedback)
-
-            # headset.send_images(left_image=np.random.randint(0, 255, (480, 640, 3), dtype=np.uint8),
-            #                     right_image=np.random.randint(0, 255, (480, 640, 3), dtype=np.uint8))
             
-            time.sleep(1/120)
+            time.sleep(1/60)
 
     except KeyboardInterrupt:
         print("Shutting down...")

@@ -145,8 +145,8 @@ class ActiveVisionController(BaseController):
     def _step_infer(self, state):
         state['language_instruction'] = self.get_language_instruction()
         raw_action = self.inference_engine.step_inference(state)  # action op concat obs
-        action_op = raw_action[:7]
-        action_obs = raw_action[7:]
+        action_op = raw_action[:8]
+        action_obs = raw_action[8:]
         
         if self._check_success(state):
             self.check_success_counter += 1

@@ -41,13 +41,13 @@ task:
         z: [0.80, 0.80]
 
 cameras:
-  # - prim_path: "/World/Camera1"
-  #   name: "ext_camera_1"
-  #   translation: [2, 0, 2]
-  #   resolution: [256, 256]
-  #   focal_length: 6
-  #   orientation: [0.61237, 0.35355, 0.35355, 0.61237]
-  #   image_type: "rgb"
+  - prim_path: "/World/Camera1"
+    name: "ext_camera_1"
+    translation: [2, 0, 2]
+    resolution: [256, 256]
+    focal_length: 6
+    orientation: [0.61237, 0.35355, 0.35355, 0.61237]
+    image_type: "rgb"
 
   - prim_path: "/World/Camera2"
     name: "ext_camera_2"
@@ -62,10 +62,10 @@ cameras:
     resolution: [256, 256]
     image_type: "rgb"
   
-  # - prim_path: "/World/Ridgebase/base_link/Camera"
-  #   name: "obs_front_camera"
-  #   resolution: [256, 256]
-  #   image_type: "rgb"
+  - prim_path: "/World/Ridgebase/base_link/Camera"
+    name: "obs_front_camera"
+    resolution: [256, 256]
+    image_type: "rgb"
 
   - prim_path: "/World/Ridgebase/panda_hand/Camera"
     name: "obs_wrist_camera"
@@ -73,10 +73,10 @@ cameras:
     clipping_range: [0, 10.0]
     image_type: "rgb"
   
-  # - prim_path: "/World/Ridgebase/base_link/Camera_01"
-  #   name: "obs_top_camera"
-  #   resolution: [256, 256]
-  #   image_type: "rgb"
+  - prim_path: "/World/Ridgebase/base_link/Camera_01"
+    name: "obs_top_camera"
+    resolution: [256, 256]
+    image_type: "rgb"
 
 robot:
   - prim_path: "/World/Franka"

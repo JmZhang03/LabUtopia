@@ -32,6 +32,7 @@ import hydra
 from omegaconf import OmegaConf
 import cv2
 import numpy as np
+np.set_printoptions(precision=4, suppress=True)
 
 import omni
 from isaacsim.core.api import World
@@ -49,8 +50,57 @@ from factories.controller_factory import create_controller
 
 from quest.webrtc_headset import WebRTCHeadset
 from quest.headset_control import HeadsetOurControl
+from omni.isaac.core.articulations import Articulation
 from omni.isaac.core.utils.types import ArticulationAction
+from omni.isaac.motion_generation import (
+    LulaKinematicsSolver,
+    ArticulationKinematicsSolver
+)
 from robots.franka.rmpflow_controller import RMPFlowController
+from scipy.spatial.transform import Rotation
+
+
+class IKController:
+    def __init__(self, robot_articulation: Articulation):
+        franka_dir = "/home/ubuntu/LabUtopia/robots/franka"
+        robot_description_path = os.path.join(franka_dir, "rmpflow/robot_descriptor.yaml")
+        urdf_path = os.path.join(franka_dir, "lula_franka_gen.urdf")
+        
+        self._kinematics_solver = LulaKinematicsSolver(
+            robot_description_path=robot_description_path,
+            urdf_path=urdf_path
+        )
+
+        end_effector_name = "right_gripper" 
+        self._articulation_kinematics_solver = ArticulationKinematicsSolver(
+            robot_articulation, 
+            self._kinematics_solver, 
+            end_effector_name
+        )
+        self.robot = robot_articulation
+        self.last_action = None
+        print("Kinematics Solver Initialized!")
+
+    def reset(self):
+        robot_base_translation, robot_base_orientation = self.robot.get_world_pose() # wxyz
+        self._kinematics_solver.set_robot_base_pose(robot_base_translation, robot_base_orientation)        
+
+    def get_current_pose(self):
+        ee_pos, ee_rot = self._articulation_kinematics_solver.compute_end_effector_pose()
+        ee_quat = Rotation.from_matrix(ee_rot).as_quat() # xyzw
+        return ee_pos, ee_quat
+    
+    def forward(self, target_pos_world, target_quat_world_wxyz):
+        action, success = self._articulation_kinematics_solver.compute_inverse_kinematics(
+            target_position=target_pos_world,
+            target_orientation=target_quat_world_wxyz
+        )
+        if not success:
+            # print("[Warning] Inverse Dynamics Solving Failed!!!")
+            return self.last_action
+        self.last_action = action    
+        return action
+
 
 def main():
     hydra.initialize(config_path=args.config_dir, job_name=args.config_name)
@@ -135,22 +185,22 @@ def main():
         final_joint_positions = None
         test_step_counter = 0
 
-        # Prepare RMPFlow Controller
-        # op_rmp_controller = task_controller.rmp_controller
-        op_rmp_controller = RMPFlowController(name="op_rmp_controller",
-                                               robot_articulation=robot_op)
-        obs_rmp_controller = RMPFlowController(name="obs_rmp_controller",
-                                               robot_articulation=robot_obs)
-        task.reset()
-        op_default_joints = robot_op.get_joint_positions()   # (9,)
-        obs_default_joints = robot_obs.get_joint_positions() # (12,)
-        obs_base_default = obs_default_joints[:3]
-        # print(f"obs joint positions shape: {obs_default_joints.shape}")
-        # print(obs_default_joints)
+        # Prepare IK Controller
+        op_ik_controller = IKController(robot_articulation=robot_op)
+        obs_ik_controller = IKController(robot_articulation=robot_obs)
         print("[VR] Waiting for headset connection...")
 
     video_writer = None
     task.reset()
+
+    if args.use_vr:
+        op_ik_controller.reset()
+        obs_ik_controller.reset()
+
+    if args.use_vr or multi_robots_mode:
+        op_default_joints = robot_op.get_joint_positions()   # (9,)
+        obs_default_joints = robot_obs.get_joint_positions() # (12,)
+        obs_base_default = obs_default_joints[:3]
     
     while simulation_app.is_running():
         world.step(render=True)                    
@@ -184,6 +234,10 @@ def main():
                     cv2.destroyAllWindows()
                     break
                 task.reset()
+
+                if args.use_vr:
+                    op_ik_controller.reset()
+                    obs_ik_controller.reset()
                 
                 continue
                 
@@ -225,13 +279,16 @@ def main():
                         print("[VR] >>> START CALIBRATION...")
                         
                         # Get robots ee_pose
-                        ee_pos_op = robot_op.get_gripper_position()
-                        ee_quat_op = robot_op.get_gripper_orientation()
-                        ee_quat_op_xyzw = np.array([ee_quat_op[1], ee_quat_op[2], ee_quat_op[3], ee_quat_op[0]])
+                        # ee_pos_op = robot_op.get_gripper_position()
+                        # ee_quat_op = robot_op.get_gripper_orientation()
+                        # ee_quat_op_xyzw = np.array([ee_quat_op[1], ee_quat_op[2], ee_quat_op[3], ee_quat_op[0]])
 
-                        ee_pos_obs = robot_obs.get_gripper_position()
-                        ee_quat_obs = robot_obs.get_gripper_orientation()
-                        ee_quat_obs_xyzw = np.array([ee_quat_obs[1], ee_quat_obs[2], ee_quat_obs[3], ee_quat_obs[0]])
+                        # ee_pos_obs = robot_obs.get_gripper_position()
+                        # ee_quat_obs = robot_obs.get_gripper_orientation()
+                        # ee_quat_obs_xyzw = np.array([ee_quat_obs[1], ee_quat_obs[2], ee_quat_obs[3], ee_quat_obs[0]])
+                        
+                        ee_pos_op, ee_quat_op_xyzw = op_ik_controller.get_current_pose()
+                        ee_pos_obs, ee_quat_obs_xyzw = obs_ik_controller.get_current_pose()
                         
                         op_pose = np.concatenate([ee_pos_op, ee_quat_op_xyzw])
                         obs_pose = np.concatenate([ee_pos_obs, ee_quat_obs_xyzw])
@@ -255,31 +312,21 @@ def main():
                             # Concat joint states
                             joint_angles=np.concatenate([
                                 state['joint_positions_op'][:-1], 
-                                state['joint_positions_obs'][:-1]
+                                state['joint_positions_obs'][3:-2]
                             ]),
                         )
                     
                     # Calculate Actions
-                    # ee_pos_op = robot_op.get_gripper_position()
-                    # ee_quat_op = robot_op.get_gripper_orientation()
-                    # ee_quat_op_xyzw = np.array([ee_quat_op[1], ee_quat_op[2], ee_quat_op[3], ee_quat_op[0]])
-                    # op_pose = np.concatenate([ee_pos_op, ee_quat_op_xyzw])
+                    ee_pos_op, ee_quat_op_xyzw = op_ik_controller.get_current_pose()
+                    op_pose = np.concatenate([ee_pos_op, ee_quat_op_xyzw])
 
-                    # ee_pos_obs = robot_obs.get_gripper_position()
-                    # ee_quat_obs = robot_obs.get_gripper_orientation()
-                    # ee_quat_obs_xyzw = np.array([ee_quat_obs[1], ee_quat_obs[2], ee_quat_obs[3], ee_quat_obs[0]])
-                    # obs_pose = np.concatenate([ee_pos_obs, ee_quat_obs_xyzw])
+                    ee_pos_obs, ee_quat_obs_xyzw = obs_ik_controller.get_current_pose()
+                    obs_pose = np.concatenate([ee_pos_obs, ee_quat_obs_xyzw])
 
                     # Get Target Action
                     action = ctrl.run(data)
-                    # action, feedback = ctrl.run(data, op_pose, obs_pose)
                     if action is None:
                         continue
-                    # print(f"Op Target Pos: {action[0:3]}, Obs Target Pos: {action[8:11]}")
-                    # print(f"Op Target Quat: {action[3:7]}, Obs Target Quat: {action[11:15]}")
-
-                    # if feedback.right_out_of_sync:
-                    #     raise RuntimeError("Warning: Right Arm Out of Sync!")
 
                     target_op_pos = action[0:3]
                     target_op_quat = action[3:7] # xyzw
@@ -288,30 +335,41 @@ def main():
                     target_obs_pos = action[8:11]
                     target_obs_quat = action[11:15]
 
+                    if test_step_counter % 50 == 0:
+                        print(f"Obs current pos: {ee_pos_obs} | quat: {ee_quat_obs_xyzw}")
+                        print(f"Obs target pos: {target_obs_pos} | quat: {target_obs_quat}\n")
+                        print(f"Op current pos: {ee_pos_op} | quat: {ee_quat_op_xyzw}")
+                        print(f"Op target pos: {target_op_pos} | quat: {target_op_quat}\n")
+
                     target_op_quat_wxyz = np.array([target_op_quat[3], target_op_quat[0], 
                                                     target_op_quat[1], target_op_quat[2]])
                     target_obs_quat_wxyz = np.array([target_obs_quat[3], target_obs_quat[0], 
                                                         target_obs_quat[1], target_obs_quat[2]])
 
-                    target_op_joints = op_rmp_controller.forward(target_op_pos, target_op_quat_wxyz)
-                    target_obs_joints = obs_rmp_controller.forward(target_obs_pos, target_obs_quat_wxyz)
+                    target_op_action = op_ik_controller.forward(target_op_pos, target_op_quat_wxyz)
+                    target_obs_action = obs_ik_controller.forward(target_obs_pos, target_obs_quat_wxyz)
 
                     op_gripper_val = 0.04 * (1.0 - target_op_gripper)
 
+                    if target_op_action is None or target_obs_action is None:
+                        continue
+
+                    target_op_joints = target_op_action.joint_positions[:7]
+                    target_obs_joints = target_obs_action.joint_positions[:7]
+                    
                     # Apply Articulation Action
                     op_action = ArticulationAction(
-                        joint_positions=list(target_op_joints.joint_positions) + [op_gripper_val, op_gripper_val]
+                        joint_positions=list(target_op_joints) + [op_gripper_val, op_gripper_val]
                     )
                     obs_action = ArticulationAction(
-                        joint_positions=list(obs_base_default) + list(target_obs_joints.joint_positions) + [0.04, 0.04]
+                        joint_positions=list(obs_base_default) + list(target_obs_joints) + [0.04, 0.04]
                     )
                     
                     # Test Actions
-                    # test_step_counter += 1
+                    test_step_counter += 1
                     # op_test_joints = list(op_default_joints)
                     # op_test_joints[1] += 0.4 * math.sin(test_step_counter * 0.02)
                     # op_action = ArticulationAction(joint_positions=op_test_joints)
-
                     # obs_test_joints = list(obs_default_joints)
                     # obs_test_joints[4] += 0.4 * math.sin(test_step_counter * 0.02)
                     # obs_action = ArticulationAction(joint_positions=obs_test_joints)
@@ -328,7 +386,7 @@ def main():
                         task_controller.reset_needed = True
                         final_joint_positions = np.concatenate([
                             state['joint_positions_op'][:-1], 
-                            state['joint_positions_obs'][:-1]
+                            state['joint_positions_obs'][3:-2]
                         ])
 
                     # Mark Task Complete: Failed
@@ -347,9 +405,10 @@ def main():
                 if action is not None:
                     if multi_robots_mode:
                         assert isinstance(action, (list, tuple))  # Need contoller to divide actions
-                        for i, act in enumerate(action):
-                                if act is not None:
-                                    robot[i].get_articulation_controller().apply_action(act)
+                        action_op, action_obs = action[0], action[1]
+                        # Need to combine action_obs with base and gripper
+                        robot_op.get_articulation_controller().apply_action(action_op)
+                        robot_obs.get_articulation_controller().apply_action(action_obs)
                     else:
                         robot.get_articulation_controller().apply_action(action)
                 if done:
