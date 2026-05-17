@@ -203,8 +203,10 @@ def main():
 
     if args.use_vr or multi_robots_mode:
         op_default_joints = robot_op.get_joint_positions()   # (9,)
-        obs_default_joints = robot_obs.get_joint_positions() # (12,)
+        # obs_default_joints = robot_obs.get_joint_positions() # (12,)
+        obs_default_joints = task.obs_initial_joints
         obs_base_default = obs_default_joints[:3]
+        # print(f"Obs Initial Joint Positions: {obs_default_joints[3:10]}\n")
         
         op_initial_action = ArticulationAction(joint_positions=list(op_default_joints))
         obs_initial_action = ArticulationAction(joint_positions=list(obs_default_joints))
@@ -260,11 +262,7 @@ def main():
                     obs_ik_controller.reset()
                 
                 continue
-                
-            state = task.step()
-            if state is None:
-                continue
-            
+                          
             # VR Data Collection
             if args.use_vr:
                 data = headset.receive_data()
@@ -308,17 +306,24 @@ def main():
                         is_calibrated = True
                         ask_for_calibrate = False
                         last_r_button_one = data.r_button_one
+
+                        task.reset()
                     
                     continue
 
                 # VR Data Transformation 
                 if data is not None: 
                     test_step_counter += 1 
+                    state = task.step()
+                    if state is None:
+                        continue
+
                     # Record Data
                     if 'camera_data' in state:
                         task_controller.data_collector.cache_step(
                             camera_images=state['camera_data'],
                             # Concat joint states
+                            # joint_angles=state['joint_positions_op'][:-1], # only op
                             joint_angles=np.concatenate([
                                 state['joint_positions_op'][:-1], 
                                 state['joint_positions_obs'][3:-2]
@@ -390,7 +395,8 @@ def main():
                             task.reset_needed = True
                             task_controller.reset_needed = True
                             if is_success:
-                                task_controller._last_success = True 
+                                task_controller._last_success = True
+                                # final_joint_positions = state['joint_positions_op'][:-1] # only op
                                 final_joint_positions = np.concatenate([
                                     state['joint_positions_op'][:-1], 
                                     state['joint_positions_obs'][3:-2]
@@ -405,6 +411,7 @@ def main():
                         vr_reset_needed = True
                         task.reset_needed = True
                         task_controller.reset_needed = True
+                        # final_joint_positions = state['joint_positions_op'][:-1] # only op
                         final_joint_positions = np.concatenate([
                             state['joint_positions_op'][:-1], 
                             state['joint_positions_obs'][3:-2]
@@ -423,6 +430,10 @@ def main():
                     last_l_button_one = data.l_button_one
 
             else:
+                state = task.step()
+                if state is None:
+                    continue
+                
                 action, done, is_success = task_controller.step(state)
                 if action is not None:
                     if multi_robots_mode:

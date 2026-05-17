@@ -1,15 +1,11 @@
-name: Active_vision
+name: Active_single
 
-task_type: "active_vision"
-controller_type: "active_vision"
-
-sub_task_type: "pick"
-sub_controller_type: "pick"
+task_type: "pick"
+controller_type: "pick"
 
 mode: "collect"
 
 usd_path: "assets/chemistry_lab/lab_001/lab_001.usd"
-
 
 max_episodes: 10
 
@@ -54,22 +50,11 @@ cameras:
     resolution: [256, 256]
     image_type: "rgb"
 
-  - prim_path: "/World/Ridgebase/panda_hand/Camera"
-    name: "camera_3"
-    resolution: [256, 256]
-    clipping_range: [0.2, 6.0]
-    image_type: "rgb"
-
 robot:
-  - prim_path: "/World/Franka"
-    name: "franka"
-    type: "franka"
-    position: [-0.7, -0.65, 0.71]
-
-  - prim_path: "/World/Ridgebase"
-    name: "ridgebase"
-    type: "ridgebase"
-    position: [-1.3, -1.5, 0.0]
+  prim_path: "/World/Franka"
+  name: "franka"
+  type: "franka"
+  position: [-0.7, -0.65, 0.71]
 
 collector:
   type: "default"

@@ -366,8 +366,8 @@ class BaseTask(ABC):
         """
         if success:
             self.current_obj_episodes += 1
-            if self.current_obj_episodes >= self.episodes_per_obj and len(self.obj_configs) > 0:
-                self.current_obj_idx = (self.current_obj_idx + 1) % len(self.obj_configs)
-                self.current_obj_episodes = 0
+            # if self.current_obj_episodes >= self.episodes_per_obj and len(self.obj_configs) > 0:
+            #     self.current_obj_idx = (self.current_obj_idx + 1) % len(self.obj_configs)
+            #     self.current_obj_episodes = 0
             if self.available_materials:
                 self.current_material_idx = (self.current_material_idx + 1) % len(self.available_materials)

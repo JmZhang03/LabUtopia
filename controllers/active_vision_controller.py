@@ -3,13 +3,60 @@ import numpy as np
 from scipy.spatial.transform import Rotation as R
 
 from .base_controller import BaseController
+from .pick_controller import PickTaskController
 from .atomic_actions.pick_controller import PickController
 from .robot_controllers.trajectory_controller import FrankaTrajectoryController
 from .inference_engines.inference_engine_factory import InferenceEngineFactory
 from omni.isaac.core.utils.types import ArticulationAction
 
 
-class ActiveVisionController(BaseController):
+class ActiveVisionController(PickTaskController):
+    
+    def __init__(self, cfg, robot):
+        if not isinstance(robot, list) or len(robot) < 2:
+            raise ValueError("Active Vision Controller needs at least 2 robots!")  
+        self.robot_op = robot[0]  # operator
+        self.robot_obs = robot[1] # observer
+        self.robots = robot       # robot list
+        self.obs_initial_joints = [0, 0, 0, 0.5, -1.57, 0, -1.57, 0, 1.57, -0.8, 0.04, 0.04]
+        super().__init__(cfg, self.robot_op)
+
+    def _get_observer_action(self) -> ArticulationAction:
+        return ArticulationAction(joint_positions=self.obs_initial_joints)
+
+    def _step_collect(self, state):
+        if self._check_success():
+            self.check_success_counter += 1
+        else:
+            self.check_success_counter = 0
+            
+        action_op = None
+        if not self.pick_controller.is_done():
+            # !!! state keys: includes op & obs
+            action_op = self.pick_controller.forward(
+                picking_position=state['object_position'],
+                current_joint_positions=state['joint_positions_op'],
+                object_size=state['object_size'],
+                object_name=state['object_name'],
+                gripper_control=self.gripper_control,
+                end_effector_orientation=R.from_euler('xyz', np.radians([0, 90, 25])).as_quat(),
+                gripper_position=state['gripper_position_op'],  
+                pre_offset_x=0.05,
+                after_offset_z=0.25
+            )
+
+            action_obs = self._get_observer_action()
+            
+            return [action_op, action_obs], False, False
+        
+        success = self.check_success_counter >= self.REQUIRED_SUCCESS_STEPS
+        if success:
+            return None, True, True  
+        
+        return None, True, False
+
+
+class ActiveVisionControllerRaw(BaseController):
     
     def __init__(self, cfg, robot):
         if not isinstance(robot, list) or len(robot) < 2:
