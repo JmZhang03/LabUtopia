@@ -114,32 +114,32 @@ class ActiveVisionController(BaseController):
             action_obs = self._get_observer_action(state)
 
             # Save both robot_op & robot_obs data
-            if 'camera_data' in state:
-                self.data_collector.cache_step(
-                    camera_images=state['camera_data'],
-                    # Concat joint states
-                    joint_angles=np.concatenate([
-                        state['joint_positions_op'][:-1], 
-                        state['joint_positions_obs'][:-1]
-                    ]),
-                    language_instruction=self.get_language_instruction()
-                )
+            # if 'camera_data' in state:
+            #     self.data_collector.cache_step(
+            #         camera_images=state['camera_data'],
+            #         # Concat joint states
+            #         joint_angles=np.concatenate([
+            #             state['joint_positions_op'][:-1], 
+            #             state['joint_positions_obs'][:-1]
+            #         ]),
+            #         language_instruction=self.get_language_instruction()
+            #     )
             
             return [action_op, action_obs], False, False
         
-        self._last_success = self.check_success_counter >= self.REQUIRED_SUCCESS_STEPS
-        if self._last_success:
-            final_joints = np.concatenate([
-                state['joint_positions_op'][:-1], 
-                state['joint_positions_obs'][:-1]
-            ])
-            self.data_collector.write_cached_data(final_joints)
-            self.reset_needed = True
+        success = self.check_success_counter >= self.REQUIRED_SUCCESS_STEPS
+        if success:
+            # final_joints = np.concatenate([
+            #     state['joint_positions_op'][:-1], 
+            #     state['joint_positions_obs'][:-1]
+            # ])
+            # self.data_collector.write_cached_data(final_joints)
+            # self.reset_needed = True
             return None, True, True  
         
-        self.data_collector.clear_cache()
-        self._last_success = False
-        self.reset_needed = True
+        # self.data_collector.clear_cache()
+        # self._last_success = False
+        # self.reset_needed = True
         return None, True, False
 
     def _step_infer(self, state):

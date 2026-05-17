@@ -179,8 +179,10 @@ def main():
         vr_connected = False
         is_calibrated = False
         ask_for_calibrate = False
-        last_r_button_one = False
-        last_r_thumbstick = False
+        last_r_button_one = False  # Calibrate, Mark success
+        last_r_thumbstick = False  # Mark failed
+        last_l_button_one = False  # Switch op_paused
+        op_paused = False
         vr_reset_needed = False
         final_joint_positions = None
         test_step_counter = 0
@@ -191,6 +193,8 @@ def main():
         print("[VR] Waiting for headset connection...")
 
     video_writer = None
+    video_success_count = 0
+    current_video_path = None
     task.reset()
 
     if args.use_vr:
@@ -201,6 +205,11 @@ def main():
         op_default_joints = robot_op.get_joint_positions()   # (9,)
         obs_default_joints = robot_obs.get_joint_positions() # (12,)
         obs_base_default = obs_default_joints[:3]
+        
+        op_initial_action = ArticulationAction(joint_positions=list(op_default_joints))
+        obs_initial_action = ArticulationAction(joint_positions=list(obs_default_joints))
+        last_op_action = op_initial_action
+        last_obs_action = obs_initial_action
     
     while simulation_app.is_running():
         world.step(render=True)                    
@@ -221,11 +230,22 @@ def main():
                     is_calibrated = False
                     last_r_button_one = False
                     last_r_thumbstick = False
+                    last_l_button_one = False
                     vr_reset_needed = False
+                    op_paused = False
+                    final_joint_positions = None
+                    last_op_action = op_initial_action
+                    last_obs_action = obs_initial_action
 
                 if video_writer is not None:
                     video_writer.release()
                     video_writer = None
+                    if task_controller._last_success:
+                        video_success_count += 1
+                    else:
+                        if current_video_path and os.path.exists(current_video_path):
+                            os.remove(current_video_path)
+                    current_video_path = None 
                            
                 task_controller.reset()
                 if task_controller.episode_num() >= cfg.max_episodes:
@@ -255,12 +275,8 @@ def main():
                         print("[VR] Headset Connected!")
                     else:
                         # don't move
-                        robot_op.get_articulation_controller().apply_action(
-                            ArticulationAction(joint_positions=list(op_default_joints))
-                        )
-                        robot_obs.get_articulation_controller().apply_action(
-                            ArticulationAction(joint_positions=list(obs_default_joints))
-                        )
+                        robot_op.get_articulation_controller().apply_action(op_initial_action)
+                        robot_obs.get_articulation_controller().apply_action(obs_initial_action)
                         continue
                 
                 if not is_calibrated:
@@ -278,15 +294,7 @@ def main():
                     if data is not None and data.r_button_one and not last_r_button_one:
                         print("[VR] >>> START CALIBRATION...")
                         
-                        # Get robots ee_pose
-                        # ee_pos_op = robot_op.get_gripper_position()
-                        # ee_quat_op = robot_op.get_gripper_orientation()
-                        # ee_quat_op_xyzw = np.array([ee_quat_op[1], ee_quat_op[2], ee_quat_op[3], ee_quat_op[0]])
-
-                        # ee_pos_obs = robot_obs.get_gripper_position()
-                        # ee_quat_obs = robot_obs.get_gripper_orientation()
-                        # ee_quat_obs_xyzw = np.array([ee_quat_obs[1], ee_quat_obs[2], ee_quat_obs[3], ee_quat_obs[0]])
-                        
+                        # Get robots ee_pose                        
                         ee_pos_op, ee_quat_op_xyzw = op_ik_controller.get_current_pose()
                         ee_pos_obs, ee_quat_obs_xyzw = obs_ik_controller.get_current_pose()
                         
@@ -305,6 +313,7 @@ def main():
 
                 # VR Data Transformation 
                 if data is not None: 
+                    test_step_counter += 1 
                     # Record Data
                     if 'camera_data' in state:
                         task_controller.data_collector.cache_step(
@@ -316,67 +325,79 @@ def main():
                             ]),
                         )
                     
-                    # Calculate Actions
+                    # Switch op_paused
+                    if data.l_button_one and not last_l_button_one:
+                        if op_paused:
+                            op_paused = False
+                            print("[VR] OBS arm pauses! OP arm moves following controller!")
+                        else:
+                            op_paused = True
+                            print("[VR] OP arm pauses! OBS arm moves following VR!")
+                    
+                    # Get Current Pose
                     ee_pos_op, ee_quat_op_xyzw = op_ik_controller.get_current_pose()
                     op_pose = np.concatenate([ee_pos_op, ee_quat_op_xyzw])
-
                     ee_pos_obs, ee_quat_obs_xyzw = obs_ik_controller.get_current_pose()
                     obs_pose = np.concatenate([ee_pos_obs, ee_quat_obs_xyzw])
-
-                    # Get Target Action
-                    action = ctrl.run(data)
-                    if action is None:
-                        continue
-
-                    target_op_pos = action[0:3]
-                    target_op_quat = action[3:7] # xyzw
-                    target_op_gripper = action[7]
-                    
-                    target_obs_pos = action[8:11]
-                    target_obs_quat = action[11:15]
-
                     if test_step_counter % 50 == 0:
-                        print(f"Obs current pos: {ee_pos_obs} | quat: {ee_quat_obs_xyzw}")
-                        print(f"Obs target pos: {target_obs_pos} | quat: {target_obs_quat}\n")
                         print(f"Op current pos: {ee_pos_op} | quat: {ee_quat_op_xyzw}")
-                        print(f"Op target pos: {target_op_pos} | quat: {target_op_quat}\n")
+                        print(f"Obs current pos: {ee_pos_obs} | quat: {ee_quat_obs_xyzw}\n")
 
-                    target_op_quat_wxyz = np.array([target_op_quat[3], target_op_quat[0], 
-                                                    target_op_quat[1], target_op_quat[2]])
-                    target_obs_quat_wxyz = np.array([target_obs_quat[3], target_obs_quat[0], 
-                                                        target_obs_quat[1], target_obs_quat[2]])
+                    # Obs Follow VR
+                    if op_paused:
+                        # Op Apply Last Action
+                        robot_op.get_articulation_controller().apply_action(last_op_action)
 
-                    target_op_action = op_ik_controller.forward(target_op_pos, target_op_quat_wxyz)
-                    target_obs_action = obs_ik_controller.forward(target_obs_pos, target_obs_quat_wxyz)
+                        # Get Target Action
+                        action = ctrl.run(data)
+                        if action is None:
+                            continue
+                        
+                        target_obs_pos = action[8:11]
+                        target_obs_quat = action[11:15]
 
-                    op_gripper_val = 0.04 * (1.0 - target_op_gripper)
+                        if test_step_counter % 50 == 0:
+                            print(f"Obs target pos: {target_obs_pos} | quat: {target_obs_quat}\n")
 
-                    if target_op_action is None or target_obs_action is None:
-                        continue
-
-                    target_op_joints = target_op_action.joint_positions[:7]
-                    target_obs_joints = target_obs_action.joint_positions[:7]
+                        target_obs_quat_wxyz = np.array([target_obs_quat[3], target_obs_quat[0], 
+                                                            target_obs_quat[1], target_obs_quat[2]])
+                        target_obs_action = obs_ik_controller.forward(target_obs_pos, target_obs_quat_wxyz)
+                        if target_obs_action is None:
+                            continue
+                        target_obs_joints = target_obs_action.joint_positions[:7]
+                        # Apply Articulation Action
+                        obs_action = ArticulationAction(
+                            joint_positions=list(obs_base_default) + list(target_obs_joints) + [0.04, 0.04]
+                        )               
+                        robot_obs.get_articulation_controller().apply_action(obs_action)
+                        last_obs_action = obs_action
                     
-                    # Apply Articulation Action
-                    op_action = ArticulationAction(
-                        joint_positions=list(target_op_joints) + [op_gripper_val, op_gripper_val]
-                    )
-                    obs_action = ArticulationAction(
-                        joint_positions=list(obs_base_default) + list(target_obs_joints) + [0.04, 0.04]
-                    )
-                    
-                    # Test Actions
-                    test_step_counter += 1
-                    # op_test_joints = list(op_default_joints)
-                    # op_test_joints[1] += 0.4 * math.sin(test_step_counter * 0.02)
-                    # op_action = ArticulationAction(joint_positions=op_test_joints)
-                    # obs_test_joints = list(obs_default_joints)
-                    # obs_test_joints[4] += 0.4 * math.sin(test_step_counter * 0.02)
-                    # obs_action = ArticulationAction(joint_positions=obs_test_joints)
+                    # Op Follow Controller
+                    else:
+                        # Obs Apply Last Action
+                        robot_obs.get_articulation_controller().apply_action(last_obs_action)
+                        
+                        # Get Op Target Action
+                        action, done, is_success = task_controller.step(state)
+                        if action is not None:
+                            assert isinstance(action, (list, tuple))
+                            action_op = action[0]
+                            robot_op.get_articulation_controller().apply_action(action_op)
+                            last_op_action = action_op
 
-                    robot_op.get_articulation_controller().apply_action(op_action)
-                    robot_obs.get_articulation_controller().apply_action(obs_action)
-                    
+                        if done:
+                            vr_reset_needed = True
+                            task.reset_needed = True
+                            task_controller.reset_needed = True
+                            if is_success:
+                                task_controller._last_success = True 
+                                final_joint_positions = np.concatenate([
+                                    state['joint_positions_op'][:-1], 
+                                    state['joint_positions_obs'][3:-2]
+                                ])
+                            else:
+                                task_controller._last_success = False
+
                     # Mark Task Complete: Success
                     if data.r_button_one and not last_r_button_one:
                         print("[VR] Task Marked as SUCCESS!")
@@ -399,6 +420,7 @@ def main():
 
                     last_r_button_one = data.r_button_one
                     last_r_thumbstick = data.r_button_thumbstick
+                    last_l_button_one = data.l_button_one
 
             else:
                 action, done, is_success = task_controller.step(state)
@@ -436,7 +458,8 @@ def main():
                     if save_video:
                         output_dir = os.path.join(cfg.multi_run.run_dir, "video")
                         os.makedirs(output_dir, exist_ok=True)
-                        output_path = os.path.join(output_dir, f"episode_{task_controller._episode_num}.mp4")
+                        output_path = os.path.join(output_dir, f"episode_{video_success_count}.mp4")
+                        current_video_path = output_path 
                         if video_writer is None:
                             height, width = combined_img.shape[:2]
                             fourcc = cv2.VideoWriter_fourcc(*'mp4v')
