@@ -50,6 +50,7 @@ class ACTImageDataset(BaseImageDataset):
                 self.memory_data[episode_name] = {
                     'camera_1_rgb': h5_file['camera_1_rgb'][:],
                     'camera_2_rgb': h5_file['camera_2_rgb'][:],
+                    'camera_3_rgb': h5_file['camera_3_rgb'][:],
                     'agent_pose': h5_file['agent_pose'][:],
                     'actions': h5_file['actions'][:]
                 }
@@ -93,6 +94,7 @@ class ACTImageDataset(BaseImageDataset):
         normalizer['agent_pose'] = SingleFieldLinearNormalizer.create_fit(all_poses)
         normalizer['camera_1_rgb'] = get_image_range_normalizer()
         normalizer['camera_2_rgb'] = get_image_range_normalizer()
+        normalizer['camera_3_rgb'] = get_image_range_normalizer()
         return normalizer
     
     def get_validation_dataset(self):
@@ -116,6 +118,7 @@ class ACTImageDataset(BaseImageDataset):
             image_dict = dict()
             image_dict['camera_1_rgb'] = episode['camera_1_rgb'][obs_start_idx]
             image_dict['camera_2_rgb'] = episode['camera_2_rgb'][obs_start_idx]
+            image_dict['camera_3_rgb'] = episode['camera_3_rgb'][obs_start_idx]
             action = episode['agent_pose'][action_start_idx:]
         else:
             episode = self.h5_file[episode_name]
@@ -129,6 +132,7 @@ class ACTImageDataset(BaseImageDataset):
             image_dict = dict()
             image_dict['camera_1_rgb'] = episode['camera_1_rgb'][obs_start_idx]
             image_dict['camera_2_rgb'] = episode['camera_2_rgb'][obs_start_idx]
+            image_dict['camera_3_rgb'] = episode['camera_3_rgb'][obs_start_idx]
             action = episode['agent_pose'][action_start_idx:]
         action_len = episode_len - action_start_idx
         padded_action = np.zeros(original_action_shape, dtype=np.float32)
@@ -138,6 +142,7 @@ class ACTImageDataset(BaseImageDataset):
 
         cam1_obs = torch.from_numpy(image_dict['camera_1_rgb']).float() / 255.0
         cam2_obs = torch.from_numpy(image_dict['camera_2_rgb']).float() / 255.0
+        cam3_obs = torch.from_numpy(image_dict['camera_3_rgb']).float() / 255.0
         qpos_data = torch.from_numpy(qpos).float()
         action_data = torch.from_numpy(padded_action).float()
         is_pad = torch.from_numpy(is_pad).bool()
@@ -146,6 +151,7 @@ class ACTImageDataset(BaseImageDataset):
             'obs': {
                 'camera_1_rgb': cam1_obs,
                 'camera_2_rgb': cam2_obs,
+                'camera_3_rgb': cam3_obs,
                 'agent_pose': qpos_data,
             },
             'action': action_data,
@@ -156,6 +162,7 @@ class ACTImageDataset(BaseImageDataset):
 
         cam1_images = [item['obs']['camera_1_rgb'] for item in batch]
         cam2_images = [item['obs']['camera_2_rgb'] for item in batch]
+        cam3_images = [item['obs']['camera_3_rgb'] for item in batch]
         robot_eef_pose = [item['obs']['agent_pose'] for item in batch]
         actions = [item['action'] for item in batch]
         is_pad = [item['is_pad'] for item in batch]
@@ -163,6 +170,7 @@ class ACTImageDataset(BaseImageDataset):
         
         padded_cam1_images = pad_sequence([img for img in cam1_images], batch_first=True)
         padded_cam2_images = pad_sequence([img for img in cam2_images], batch_first=True)
+        padded_cam3_images = pad_sequence([img for img in cam3_images], batch_first=True)
         padded_robot_eef_pose = pad_sequence([pose for pose in robot_eef_pose], batch_first=True)
         padded_actions = pad_sequence([action for action in actions], batch_first=True)
         padded_is_pad = pad_sequence([pad for pad in is_pad], batch_first=True)
@@ -171,6 +179,7 @@ class ACTImageDataset(BaseImageDataset):
             'obs': {
                 'camera_1_rgb': padded_cam1_images,    # [B,T,3,H,W]
                 'camera_2_rgb': padded_cam2_images,    # [B,T,3,H,W]
+                'camera_3_rgb': padded_cam3_images,    # [B,T,3,H,W]
                 'agent_pose': padded_robot_eef_pose # [B,T,7]
             },
             'action': padded_actions,            # [B,T,7]
@@ -208,6 +217,7 @@ def main():
         print(":")
         print("Camera 1:", batch['obs']['camera_1_rgb'].shape)  # [B, T, 3, H, W]
         print("Camera 2:", batch['obs']['camera_2_rgb'].shape)  # [B, T, 3, H, W]
+        print("Camera 3:", batch['obs']['camera_3_rgb'].shape)  # [B, T, 3, H, W]
         print("Agent Pose:", batch['obs']['agent_pose'].shape)  # [B, T, 2]
         print("Actions:", batch['action'].shape)  # [B, T, 2]
         camera_1_tensor = batch['obs']['camera_1_rgb']

@@ -19,6 +19,8 @@ def parse_args():
                        help='Configuration directory path (default: config)')
     parser.add_argument('--use-vr', action='store_true', 
                        help='Enable VR teleoperation mode')
+    parser.add_argument('--only-op', action='store_true', 
+                       help='Only record operation arm data')
     return parser.parse_args()
 
 # Get command line arguments
@@ -320,14 +322,16 @@ def main():
 
                     # Record Data
                     if 'camera_data' in state:
-                        task_controller.data_collector.cache_step(
-                            camera_images=state['camera_data'],
-                            # Concat joint states
-                            # joint_angles=state['joint_positions_op'][:-1], # only op
-                            joint_angles=np.concatenate([
+                        if args.only_op:
+                            state_joints = state['joint_positions_op'][:-1]
+                        else:
+                            state_joints = np.concatenate([
                                 state['joint_positions_op'][:-1], 
                                 state['joint_positions_obs'][3:-2]
-                            ]),
+                            ])
+                        task_controller.data_collector.cache_step(
+                            camera_images=state['camera_data'],
+                            joint_angles=state_joints,
                         )
                     
                     # Switch op_paused
@@ -343,10 +347,7 @@ def main():
                     ee_pos_op, ee_quat_op_xyzw = op_ik_controller.get_current_pose()
                     op_pose = np.concatenate([ee_pos_op, ee_quat_op_xyzw])
                     ee_pos_obs, ee_quat_obs_xyzw = obs_ik_controller.get_current_pose()
-                    obs_pose = np.concatenate([ee_pos_obs, ee_quat_obs_xyzw])
-                    if test_step_counter % 50 == 0:
-                        print(f"Op current pos: {ee_pos_op} | quat: {ee_quat_op_xyzw}")
-                        print(f"Obs current pos: {ee_pos_obs} | quat: {ee_quat_obs_xyzw}\n")
+                    obs_pose = np.concatenate([ee_pos_obs, ee_quat_obs_xyzw])                        
 
                     # Obs Follow VR
                     if op_paused:
@@ -362,6 +363,7 @@ def main():
                         target_obs_quat = action[11:15]
 
                         if test_step_counter % 50 == 0:
+                            print(f"Obs current pos: {ee_pos_obs} | quat: {ee_quat_obs_xyzw}")
                             print(f"Obs target pos: {target_obs_pos} | quat: {target_obs_quat}\n")
 
                         target_obs_quat_wxyz = np.array([target_obs_quat[3], target_obs_quat[0], 
@@ -396,11 +398,13 @@ def main():
                             task_controller.reset_needed = True
                             if is_success:
                                 task_controller._last_success = True
-                                # final_joint_positions = state['joint_positions_op'][:-1] # only op
-                                final_joint_positions = np.concatenate([
-                                    state['joint_positions_op'][:-1], 
-                                    state['joint_positions_obs'][3:-2]
-                                ])
+                                if args.only_op:
+                                    final_joint_positions = state['joint_positions_op'][:-1]
+                                else:
+                                    final_joint_positions = np.concatenate([
+                                        state['joint_positions_op'][:-1], 
+                                        state['joint_positions_obs'][3:-2]
+                                    ])
                             else:
                                 task_controller._last_success = False
 
@@ -411,11 +415,13 @@ def main():
                         vr_reset_needed = True
                         task.reset_needed = True
                         task_controller.reset_needed = True
-                        # final_joint_positions = state['joint_positions_op'][:-1] # only op
-                        final_joint_positions = np.concatenate([
-                            state['joint_positions_op'][:-1], 
-                            state['joint_positions_obs'][3:-2]
-                        ])
+                        if args.only_op:
+                            final_joint_positions = state['joint_positions_op'][:-1]
+                        else:
+                            final_joint_positions = np.concatenate([
+                                state['joint_positions_op'][:-1], 
+                                state['joint_positions_obs'][3:-2]
+                            ])
 
                     # Mark Task Complete: Failed
                     if data.r_button_thumbstick and not last_r_thumbstick:
@@ -434,16 +440,37 @@ def main():
                 if state is None:
                     continue
                 
+                if multi_robots_mode and args.only_op:
+                    state['joint_positions'] = state['joint_positions_op']
+                    del state['joint_positions_op']
+                    del state['joint_positions_obs']
+
                 action, done, is_success = task_controller.step(state)
-                if action is not None:
+                if action is None:
                     if multi_robots_mode:
-                        assert isinstance(action, (list, tuple))  # Need contoller to divide actions
-                        action_op, action_obs = action[0], action[1]
-                        # Need to combine action_obs with base and gripper
+                        robot_op.get_articulation_controller().apply_action(last_op_action)
+                        robot_obs.get_articulation_controller().apply_action(last_obs_action)
+                    continue
+
+                if multi_robots_mode:
+                    assert isinstance(action, (list, tuple))  # Need contoller to divide actions
+                    action_op, action_obs = action[0], action[1]
+                    # Need to combine action_obs with base and gripper
+                    if action_op is not None:
                         robot_op.get_articulation_controller().apply_action(action_op)
-                        robot_obs.get_articulation_controller().apply_action(action_obs)
+                        last_op_action = action_op
                     else:
-                        robot.get_articulation_controller().apply_action(action)
+                        robot_op.get_articulation_controller().apply_action(last_op_action)
+
+                    if action_obs is not None:
+                        robot_obs.get_articulation_controller().apply_action(action_obs)
+                        last_obs_action = action_obs
+                    else:
+                        robot_obs.get_articulation_controller().apply_action(last_obs_action)
+                
+                else:
+                    robot.get_articulation_controller().apply_action(action)
+                
                 if done:
                     task.on_task_complete(is_success)
                     continue

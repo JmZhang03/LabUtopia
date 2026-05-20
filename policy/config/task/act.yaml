@@ -1,8 +1,8 @@
-name: open
+name: pick_bottle_active
 
 image_shape: [3, 256, 256]
-dataset_path: outputs/collect/pick/dataset
-obs_keys: &obs_keys ['camera_1_rgb', 'camera_2_rgb', 'agent_pose']
+dataset_path: outputs/exp_data/1_pick_bottle/3_active/dataset
+obs_keys: &obs_keys ['camera_1_rgb', 'camera_2_rgb', 'camera_3_rgb', 'agent_pose']
 
 shape_meta: &shape_meta
   # acceptable types: rgb, low_dim
@@ -13,11 +13,14 @@ shape_meta: &shape_meta
     camera_2_rgb:
       shape: ${task.image_shape}
       type: rgb
+    camera_3_rgb:
+      shape: ${task.image_shape}
+      type: rgb
     agent_pose:
-      shape: [8]
+      shape: [15]
       type: low_dim
   action: 
-    shape: [8]
+    shape: [15]
 
 
 dataset:

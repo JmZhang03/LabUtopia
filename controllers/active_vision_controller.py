@@ -19,7 +19,14 @@ class ActiveVisionController(PickTaskController):
         self.robot_obs = robot[1] # observer
         self.robots = robot       # robot list
         self.obs_initial_joints = [0, 0, 0, 0.5, -1.57, 0, -1.57, 0, 1.57, -0.8, 0.04, 0.04]
+        self.obs_base_default = [0, 0, 0]
+        self.obs_gripper_default = [0.04, 0.04]
         super().__init__(cfg, self.robot_op)
+        if self.mode == "infer":
+            self.trajectory_controller_obs = FrankaTrajectoryController(
+                name="trajectory_controller_obs",
+                robot_articulation=self.robot_obs
+            )
 
     def _get_observer_action(self) -> ArticulationAction:
         return ArticulationAction(joint_positions=self.obs_initial_joints)
@@ -54,6 +61,45 @@ class ActiveVisionController(PickTaskController):
             return None, True, True  
         
         return None, True, False
+
+    def _step_infer(self, state):
+        language_instruction = self.get_language_instruction()
+        state['language_instruction'] = language_instruction
+            
+        action = self.inference_engine.step_inference(state)
+        if action is None:
+            return None, False, False
+        
+        if len(action) == 8: # only op
+            op_gripper = [action[7]]
+            op_joints = np.concatenate([action, op_gripper])
+            action_op = ArticulationAction(joint_positions=list(op_joints))
+            action_obs = None
+        elif len(action) == 15:
+            action_op_8d = action[:8]
+            op_gripper = [action[7]]
+            action_obs_7d = action[8:]
+            op_full_joints = np.concatenate([action_op_8d, op_gripper])
+            action_op = ArticulationAction(joint_positions=list(op_full_joints))
+            obs_full_joints = np.concatenate([
+                self.obs_base_default, 
+                action_obs_7d, 
+                self.obs_gripper_default
+            ])
+            action_obs = ArticulationAction(joint_positions=list(obs_full_joints))
+        else:
+            return None, False, False
+        
+        if self._check_success():
+            self.check_success_counter += 1
+        else:
+            self.check_success_counter = 0
+            
+        self._last_success = self.check_success_counter >= self.REQUIRED_SUCCESS_STEPS
+        if self._last_success:
+            self.reset_needed = True
+            return [action_op, action_obs], True, True
+        return [action_op, action_obs], False, False
 
 
 class ActiveVisionControllerRaw(BaseController):

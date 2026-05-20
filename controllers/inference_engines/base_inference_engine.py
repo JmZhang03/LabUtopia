@@ -35,9 +35,12 @@ class BaseInferenceEngine(ABC):
             for obs_key in self.obs_names.values()
         }
         self.obs_history_pose = deque(maxlen=self.n_obs_steps)
-        
+
         # Initialize language instruction history
         self.language_instruction = ""
+
+        self._action_queue = []
+        self._action_index = 0
         
         # Initialize inference engine
         self._init_inference_engine()
@@ -74,6 +77,8 @@ class BaseInferenceEngine(ABC):
         }
         self.obs_history_pose = deque(maxlen=self.n_obs_steps)
         self.language_instruction = ""
+        self._action_queue = []
+        self._action_index = 0
         self.trajectory_controller.reset()
     
     def update_observations(self, state: Dict[str, Any]):
@@ -88,7 +93,14 @@ class BaseInferenceEngine(ABC):
                 obs_key = self.camera_to_obs[cam_name]
                 self.obs_history_dict[obs_key].append(image)
         
-        self.obs_history_pose.append(state['joint_positions'][:-1])
+        if 'joint_positions' in state:
+            self.obs_history_pose.append(state['joint_positions'][:-1])
+        else:
+            combined_joints = np.concatenate([
+                state['joint_positions_op'][:-1], 
+                state['joint_positions_obs'][3:-2]  
+            ])
+            self.obs_history_pose.append(combined_joints)
         
         if 'language_instruction' in state:
             self.language_instruction = state['language_instruction']
@@ -135,13 +147,28 @@ class BaseInferenceEngine(ABC):
         """
         self.update_observations(state)
         
-        if self.trajectory_controller.is_trajectory_complete() and self._check_histories_complete():
+        # If action queue is full
+        if self._action_index >= len(self._action_queue) and self._check_histories_complete():
             obs_dict = self._prepare_observation_dict()
+            predicted_actions = self._predict_action(obs_dict, self.language_instruction)
+            self._action_queue = predicted_actions[:40, :]
+            self._action_index = 0
             
-            joint_positions = self._predict_action(obs_dict, self.language_instruction)
-            self.trajectory_controller.generate_trajectory(joint_positions[:40, :])
+        # Pop current action
+        if self._action_index < len(self._action_queue):
+            action = self._action_queue[self._action_index]
+            self._action_index += 1
+            return action
         
-        return self.trajectory_controller.get_next_action()
+        return None
+
+        # if self.trajectory_controller.is_trajectory_complete() and self._check_histories_complete():
+        #     obs_dict = self._prepare_observation_dict()
+            
+        #     joint_positions = self._predict_action(obs_dict, self.language_instruction)
+        #     self.trajectory_controller.generate_trajectory(joint_positions[:40, :])
+        
+        # return self.trajectory_controller.get_next_action()
     
     def close(self):
         """Close the inference engine, release resources"""

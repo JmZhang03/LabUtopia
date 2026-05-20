@@ -12,9 +12,12 @@ max_episodes: 10
 infer:
   type: "local"
   obs_names: {"camera_1_rgb": 'camera_1_rgb', "camera_2_rgb": 'camera_2_rgb'}
-  policy_model_path: ""
-  policy_config_path: ""
-  normalizer_path: ""
+  policy_model_path: "outputs/exp_data/1_pick_bottle/1_single/train_act/checkpoints/latest.ckpt"
+  policy_config_path: "outputs/exp_data/1_pick_bottle/1_single/train_act/.hydra/config.yaml"
+  normalizer_path: "outputs/exp_data/1_pick_bottle/1_single/train_act/checkpoints/normalize.ckpt"
+  # policy_model_path: "outputs/exp_data/1_pick_bottle/1_single/train_dp/checkpoints/latest.ckpt"
+  # policy_config_path: "outputs/exp_data/1_pick_bottle/1_single/train_dp/.hydra/config.yaml"
+  # normalizer_path: "outputs/exp_data/1_pick_bottle/1_single/train_dp/checkpoints/normalize.ckpt"  
   host: "127.0.0.1"
   port: 8000
   n_obs_steps: 1
