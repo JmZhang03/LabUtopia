@@ -14,6 +14,7 @@ class DPImageDataset(BaseImageDataset):
     def __init__(self, 
                  shape_meta,
                  dataset_path: str,
+                 camera_names: list,
                  horizon: int = None,
                  pad_before: int = None,
                  pad_after: int = None,
@@ -37,7 +38,7 @@ class DPImageDataset(BaseImageDataset):
         self.delta_action = delta_action
         self.episode_map = []
         self.in_memory = in_memory
-        self.camera_names = ['camera_1', 'camera_2']
+        self.camera_names = camera_names
         self.horizon = horizon
         self.n_obs_steps = n_obs_steps
         
@@ -59,12 +60,13 @@ class DPImageDataset(BaseImageDataset):
             self.episode_map.append((episode_name, n_frames))
 
             if self.in_memory:
-                self.memory_data[episode_name] = {
-                    'camera_1_rgb': h5_file['camera_1_rgb'][:],
-                    'camera_2_rgb': h5_file['camera_2_rgb'][:],
-                    'agent_pose': h5_file['agent_pose'][:],
-                    'actions': h5_file['actions'][:]
-                }
+                self.memory_data[episode_name] = {'actions': h5_file['actions'][:], 
+                                                  'agent_pose': h5_file['agent_pose'][:]}
+                for cam_name in self.camera_names:
+                    if cam_name in h5_file:
+                        self.memory_data[episode_name][cam_name] = h5_file[cam_name][:]
+                    else:
+                        print(f"Warning: Camera {cam_name} not found in {episode_name}")
 
         self.episode_ids = [x[0] for x in self.episode_map]
         
@@ -100,8 +102,8 @@ class DPImageDataset(BaseImageDataset):
             all_poses.append(poses)
         all_poses = np.concatenate(all_poses, axis=0)
         normalizer['agent_pose'] = SingleFieldLinearNormalizer.create_fit(all_poses)
-        normalizer['camera_1_rgb'] = get_image_range_normalizer()
-        normalizer['camera_2_rgb'] = get_image_range_normalizer()
+        for cam_name in self.camera_names:
+            normalizer[cam_name] = get_image_range_normalizer()
         return normalizer
 
     def get_all_actions(self) -> torch.Tensor:
@@ -122,35 +124,26 @@ class DPImageDataset(BaseImageDataset):
         action_start_idx = obs_start_idx
         action_end_idx = action_start_idx + self.horizon
 
-        if self.in_memory:
-            episode = self.memory_data[episode_name]
-            cam1_obs = episode['camera_1_rgb'][obs_start_idx:obs_end_idx]
-            cam2_obs = episode['camera_2_rgb'][obs_start_idx:obs_end_idx]
-            robot_eef_obs = episode['agent_pose'][obs_start_idx:obs_end_idx]
-            actions = episode['agent_pose'][action_start_idx:action_end_idx]
-        else:
-            episode = self.h5_file[episode_name]
-            cam1_obs = episode['camera_1_rgb'][obs_start_idx:obs_end_idx]
-            cam2_obs = episode['camera_2_rgb'][obs_start_idx:obs_end_idx]
-            robot_eef_obs = episode['agent_pose'][obs_start_idx:obs_end_idx]
-            actions = episode['agent_pose'][action_start_idx:action_end_idx]
+        episode = self.memory_data[episode_name] if self.in_memory else self.h5_file[episode_name]
+        
+        cam_obs_dict = {}
+        for cam_name in self.camera_names:
+            cam_obs = episode[cam_name][obs_start_idx:obs_end_idx]
+            if cam_obs.shape[1] == 1:
+                cam_obs = np.repeat(cam_obs, 3, axis=1)
+            cam_obs = torch.from_numpy(cam_obs).float() / 255.0
+            cam_obs_dict[cam_name] = cam_obs
 
-        if cam1_obs.shape[1] == 1:
-            cam1_obs = np.repeat(cam1_obs, 3, axis=1)
-        if cam2_obs.shape[1] == 1:
-            cam2_obs = np.repeat(cam2_obs, 3, axis=1)
-
-        cam1_obs = torch.from_numpy(cam1_obs).float() / 255.0
-        cam2_obs = torch.from_numpy(cam2_obs).float() / 255.0
+        robot_eef_obs = episode['agent_pose'][obs_start_idx:obs_end_idx]
+        actions = episode['agent_pose'][action_start_idx:action_end_idx]
         robot_eef_obs = torch.from_numpy(robot_eef_obs).float()
         actions = torch.from_numpy(actions).float()
 
+        obs_data = {'agent_pose': robot_eef_obs}
+        obs_data.update(cam_obs_dict)
+
         return {
-            'obs': {
-                'camera_1_rgb': cam1_obs,
-                'camera_2_rgb': cam2_obs,
-                'agent_pose': robot_eef_obs,
-            },
+            'obs': obs_data,
             'action': actions,
         }
 
@@ -161,18 +154,15 @@ class DPImageDataset(BaseImageDataset):
     @staticmethod
     def collate_fn(batch):
 
-        cam1_images = torch.stack([item['obs']['camera_1_rgb'] for item in batch])
-        cam2_images = torch.stack([item['obs']['camera_2_rgb'] for item in batch])
-        robot_eef_pose = torch.stack([item['obs']['agent_pose'] for item in batch])
+        cam_keys = [k for k in batch[0]['obs'].keys() if 'rgb' in k]
+        obs_dict = {'agent_pose': torch.stack([item['obs']['agent_pose'] for item in batch])}
+        for cam_key in cam_keys:
+            obs_dict[cam_key] = torch.stack([item['obs'][cam_key] for item in batch])
         actions = torch.stack([item['action'] for item in batch])
         
         return {
-            'obs': {
-                'camera_1_rgb': cam1_images,        # [B,T,3,H,W]
-                'camera_2_rgb': cam2_images,        # [B,T,3,H,W]
-                'agent_pose': robot_eef_pose, # [B,T,7]
-            },
-            'action': actions,                  # [B,T,7]
+            'obs': obs_dict,
+            'action': actions,
         }
 
 import torch

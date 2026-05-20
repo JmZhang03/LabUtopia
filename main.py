@@ -197,6 +197,7 @@ def main():
     video_writer = None
     video_success_count = 0
     current_video_path = None
+    GRIPPER_THRESHOLD = 0.035
     task.reset()
 
     if args.use_vr:
@@ -320,13 +321,23 @@ def main():
                     if state is None:
                         continue
 
+                    # Set Gripper
+                    if state['joint_positions_op'][7] < GRIPPER_THRESHOLD:
+                        gripper_pos = 0.0  # close
+                    else:
+                        gripper_pos = 1.0  # open
+
                     # Record Data
                     if 'camera_data' in state:
                         if args.only_op:
-                            state_joints = state['joint_positions_op'][:-1]
+                            state_joints = np.concatenate([
+                                state['joint_positions_op'][:-2],
+                                [gripper_pos], 
+                            ])
                         else:
                             state_joints = np.concatenate([
-                                state['joint_positions_op'][:-1], 
+                                state['joint_positions_op'][:-2],
+                                [gripper_pos], 
                                 state['joint_positions_obs'][3:-2]
                             ])
                         task_controller.data_collector.cache_step(
@@ -399,10 +410,14 @@ def main():
                             if is_success:
                                 task_controller._last_success = True
                                 if args.only_op:
-                                    final_joint_positions = state['joint_positions_op'][:-1]
+                                    final_joint_positions = np.concatenate([
+                                        state['joint_positions_op'][:-2], 
+                                        [gripper_pos],
+                                    ])
                                 else:
                                     final_joint_positions = np.concatenate([
-                                        state['joint_positions_op'][:-1], 
+                                        state['joint_positions_op'][:-2], 
+                                        [gripper_pos],
                                         state['joint_positions_obs'][3:-2]
                                     ])
                             else:
@@ -416,10 +431,14 @@ def main():
                         task.reset_needed = True
                         task_controller.reset_needed = True
                         if args.only_op:
-                            final_joint_positions = state['joint_positions_op'][:-1]
+                            final_joint_positions = np.concatenate([
+                                state['joint_positions_op'][:-2], 
+                                [gripper_pos],
+                            ])
                         else:
                             final_joint_positions = np.concatenate([
-                                state['joint_positions_op'][:-1], 
+                                state['joint_positions_op'][:-2], 
+                                [gripper_pos],
                                 state['joint_positions_obs'][3:-2]
                             ])
 

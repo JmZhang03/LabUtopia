@@ -11,7 +11,7 @@ class ActiveVisionTask(PickTask):
         self.robot_op = robot[0]  # operator
         self.robot_obs = robot[1] # observer
         self.robots = robot       # robot list
-        self.obs_initial_joints = [0, 0, 0, 0.5, -1.57, 0, -1.57, 0, 1.57, -0.8, 0.04, 0.04]
+        self.obs_initial_joints = [0, 0, 0, 0.8, -1.57, 0, -1.57, 0, 1.57, -0.8, 0.04, 0.04]
         super().__init__(cfg, world, stage, self.robot_op)
 
     def reset(self):

@@ -9,9 +9,9 @@ task_name: ${task.name}
 shape_meta: ${task.shape_meta}
 exp_name: "default"
 
-horizon: 16
+horizon: 32
 n_obs_steps: 3
-n_action_steps: 10
+n_action_steps: 16
 n_latency_steps: 0
 dataset_obs_steps: ${n_obs_steps}
 keypoint_visible_rate: 1.0
@@ -49,7 +49,7 @@ policy:
   horizon: ${horizon}
   n_action_steps: ${eval:'${n_action_steps}+${n_latency_steps}'}
   n_obs_steps: ${n_obs_steps}
-  num_inference_steps: 100
+  num_inference_steps: 10 # 100
   obs_as_global_cond: ${obs_as_global_cond}
   diffusion_step_embed_dim: 128
   down_dims: [512, 1024, 2048]
@@ -112,7 +112,7 @@ training:
   tqdm_interval_sec: 1.0
 
 logging:
-  project: diffusion_policy_debug
+  project: diffusion_policy_exp
   resume: True
   mode: online
   name: ${now:%Y.%m.%d-%H.%M.%S}_${name}_${task_name}

@@ -1,4 +1,5 @@
 import re
+import copy
 from typing import Optional
 import numpy as np
 from robots.franka.rmpflow_controller import RMPFlowController
@@ -8,6 +9,9 @@ from .base_controller import BaseController
 from .atomic_actions.pick_controller import PickController
 from .robot_controllers.trajectory_controller import FrankaTrajectoryController
 from .inference_engines.inference_engine_factory import InferenceEngineFactory
+from omni.isaac.core.utils.types import ArticulationAction
+
+
 class PickTaskController(BaseController):
     """
     Controller for pick-and-place tasks with two operation modes:
@@ -22,6 +26,7 @@ class PickTaskController(BaseController):
     def __init__(self, cfg, robot):
         super().__init__(cfg, robot)
         self.initial_position = None
+        self.gripper_threshold = 0.035
             
     def _init_collect_mode(self, cfg, robot):
         """
@@ -93,6 +98,16 @@ class PickTaskController(BaseController):
         else:
             self.check_success_counter = 0
         
+        # Set Gripper
+        if state['joint_positions'][7] < self.gripper_threshold:
+            gripper_pos = 0.0  # close
+        else:
+            gripper_pos = 1.0  # open
+        state_joints = np.concatenate([
+            state['joint_positions'][:-2],
+            [gripper_pos], 
+        ])
+        
         if not self.pick_controller.is_done():
             action = self.pick_controller.forward(
                 picking_position=state['object_position'],
@@ -105,11 +120,11 @@ class PickTaskController(BaseController):
                 pre_offset_x=0.05,
                 after_offset_z=0.25
             )
-            
+
             if 'camera_data' in state:
                 self.data_collector.cache_step(
                     camera_images=state['camera_data'],
-                    joint_angles=state['joint_positions'][:-1],
+                    joint_angles=state_joints,
                     language_instruction=self.get_language_instruction()
                 )
             
@@ -117,7 +132,7 @@ class PickTaskController(BaseController):
         
         self._last_success = self.check_success_counter >= self.REQUIRED_SUCCESS_STEPS
         if self._last_success:
-            self.data_collector.write_cached_data(state['joint_positions'][:-1])
+            self.data_collector.write_cached_data(state_joints)
             self.reset_needed = True
             return None, True, True
 
@@ -140,7 +155,20 @@ class PickTaskController(BaseController):
         language_instruction = self.get_language_instruction()
         state['language_instruction'] = language_instruction
             
-        action = self.inference_engine.step_inference(state)
+        # state gripper [0, 0.04]  ->  policy gripper 0.0/1.0
+        state_infer = copy.deepcopy(state) 
+        gripper_pos = state_infer['joint_positions'][7]
+        if gripper_pos < self.gripper_threshold:
+            state_infer['joint_positions'][7] = state_infer['joint_positions'][8] = 0.0  # close
+        else:
+            state_infer['joint_positions'][7] = state_infer['joint_positions'][8] = 1.0  # open
+            
+        action_infer = self.inference_engine.step_inference(state_infer)
+
+        # policy gripper 0.0/1.0  ->  state gripper [0, 0.04]
+        action_infer[7] = 0.0 if action_infer[7] < 0.5 else 0.04
+        action_joints = np.concatenate([action_infer, [action_infer[7]]])
+        action = ArticulationAction(joint_positions=action_joints)
         
         if self._check_success():
             self.check_success_counter += 1

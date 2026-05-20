@@ -3,6 +3,7 @@ name: pick_single
 image_shape: [3, 256, 256]
 dataset_path: outputs/exp_data/1_pick_bottle/1_single/dataset
 obs_keys: &obs_keys ['camera_1_rgb', 'camera_2_rgb', 'agent_pose']
+camera_names: ['camera_1_rgb', 'camera_2_rgb']
 
 shape_meta: &shape_meta
   # acceptable types: rgb, low_dim
@@ -23,6 +24,7 @@ dataset:
   _target_: policy.dataset.dp_image_dataset.DPImageDataset
   shape_meta: *shape_meta
   dataset_path: ${task.dataset_path}
+  camera_names: ${task.camera_names}
   horizon: ${horizon}
   pad_before: ${eval:'${n_obs_steps}-1+${n_latency_steps}'}
   pad_after: ${eval:'${n_action_steps}-1'}

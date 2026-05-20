@@ -15,6 +15,7 @@ class ACTImageDataset(BaseImageDataset):
     def __init__(self, 
                  shape_meta,
                  dataset_path: str,
+                 camera_names: list,
                  seed: int = 42,
                  horizon: int = None,
                  n_obs_steps: int = None,
@@ -25,7 +26,7 @@ class ACTImageDataset(BaseImageDataset):
         self.seed = seed
         self.val_ratio = val_ratio
         self.in_memory = in_memory
-        self.camera_names = ['camera_1', 'camera_2']
+        self.camera_names = camera_names
         self.horizon = horizon
         self.n_obs_steps = n_obs_steps
 
@@ -47,13 +48,13 @@ class ACTImageDataset(BaseImageDataset):
             self.episode_map.append((episode_name, n_frames))
 
             if self.in_memory:
-                self.memory_data[episode_name] = {
-                    'camera_1_rgb': h5_file['camera_1_rgb'][:],
-                    'camera_2_rgb': h5_file['camera_2_rgb'][:],
-                    'camera_3_rgb': h5_file['camera_3_rgb'][:],
-                    'agent_pose': h5_file['agent_pose'][:],
-                    'actions': h5_file['actions'][:]
-                }
+                self.memory_data[episode_name] = {'actions': h5_file['actions'][:], 
+                                                  'agent_pose': h5_file['agent_pose'][:]}
+                for cam_name in self.camera_names:
+                    if cam_name in h5_file:
+                        self.memory_data[episode_name][cam_name] = h5_file[cam_name][:]
+                    else:
+                        print(f"Warning: Camera {cam_name} not found in {episode_name}")
 
         self.episode_ids = [x[0] for x in self.episode_map]
         
@@ -92,9 +93,8 @@ class ACTImageDataset(BaseImageDataset):
             all_poses.append(poses)
         all_poses = np.concatenate(all_poses, axis=0)
         normalizer['agent_pose'] = SingleFieldLinearNormalizer.create_fit(all_poses)
-        normalizer['camera_1_rgb'] = get_image_range_normalizer()
-        normalizer['camera_2_rgb'] = get_image_range_normalizer()
-        normalizer['camera_3_rgb'] = get_image_range_normalizer()
+        for cam_name in self.camera_names:
+            normalizer[cam_name] = get_image_range_normalizer()
         return normalizer
     
     def get_validation_dataset(self):
@@ -106,83 +106,59 @@ class ACTImageDataset(BaseImageDataset):
     
     def __getitem__(self, index: int) -> Dict[str, torch.Tensor]:
         episode_name, start_idx = self.sequences[index]
-        if self.in_memory:
-            episode = self.memory_data[episode_name]
-            original_action_shape = episode['actions'].shape
-            obs_start_idx = start_idx
-            obs_end_idx = start_idx + self.n_obs_steps
-            action_start_idx = obs_end_idx
-            action_end_idx = action_start_idx + self.horizon
-            episode_len = original_action_shape[0]
-            qpos = episode['agent_pose'][obs_start_idx]
-            image_dict = dict()
-            image_dict['camera_1_rgb'] = episode['camera_1_rgb'][obs_start_idx]
-            image_dict['camera_2_rgb'] = episode['camera_2_rgb'][obs_start_idx]
-            image_dict['camera_3_rgb'] = episode['camera_3_rgb'][obs_start_idx]
-            action = episode['agent_pose'][action_start_idx:]
-        else:
-            episode = self.h5_file[episode_name]
-            original_action_shape = episode['actions'].shape
-            obs_start_idx = start_idx
-            obs_end_idx = start_idx + self.n_obs_steps
-            action_start_idx = obs_end_idx
-            action_end_idx = action_start_idx + self.horizon
-            episode_len = original_action_shape[0]
-            qpos = episode['agent_pose'][obs_start_idx]
-            image_dict = dict()
-            image_dict['camera_1_rgb'] = episode['camera_1_rgb'][obs_start_idx]
-            image_dict['camera_2_rgb'] = episode['camera_2_rgb'][obs_start_idx]
-            image_dict['camera_3_rgb'] = episode['camera_3_rgb'][obs_start_idx]
-            action = episode['agent_pose'][action_start_idx:]
+        episode = self.memory_data[episode_name] if self.in_memory else self.h5_file[episode_name]
+        
+        original_action_shape = episode['actions'].shape
+        obs_start_idx = start_idx
+        obs_end_idx = start_idx + self.n_obs_steps
+        action_start_idx = obs_end_idx
+        episode_len = original_action_shape[0]
+        qpos = episode['agent_pose'][obs_start_idx]
+        
+        image_dict = dict()
+        for cam_name in self.camera_names:
+            img_data = episode[cam_name][obs_start_idx]
+            image_dict[cam_name] = torch.from_numpy(img_data).float() / 255.0
+        
+        action = episode['agent_pose'][action_start_idx:]
         action_len = episode_len - action_start_idx
         padded_action = np.zeros(original_action_shape, dtype=np.float32)
         padded_action[:action_len] = action
         is_pad = np.zeros(episode_len)
         is_pad[action_len:] = 1
-
-        cam1_obs = torch.from_numpy(image_dict['camera_1_rgb']).float() / 255.0
-        cam2_obs = torch.from_numpy(image_dict['camera_2_rgb']).float() / 255.0
-        cam3_obs = torch.from_numpy(image_dict['camera_3_rgb']).float() / 255.0
+        
         qpos_data = torch.from_numpy(qpos).float()
         action_data = torch.from_numpy(padded_action).float()
         is_pad = torch.from_numpy(is_pad).bool()
 
+        obs_dict = {'agent_pose': qpos_data}
+        obs_dict.update(image_dict)
+
         return {
-            'obs': {
-                'camera_1_rgb': cam1_obs,
-                'camera_2_rgb': cam2_obs,
-                'camera_3_rgb': cam3_obs,
-                'agent_pose': qpos_data,
-            },
+            'obs': obs_dict,
             'action': action_data,
             'is_pad': is_pad
         }
+    
     @staticmethod
     def collate_fn(batch):
+        obs_keys = batch[0]['obs'].keys()
+        stacked_obs = {}
+        for key in obs_keys:
+            items = [item['obs'][key] for item in batch]
+            # qpos: list of (D,) -> stack -> (B, D)
+            # image: list of (H, W, C) -> stack -> (B, H, W, C)
+            stacked_obs[key] = torch.stack(items, dim=0)
+            
+        actions = [item['action'] for item in batch]   # list of (L, D)
+        is_pad = [item['is_pad'] for item in batch]    # list of (L,)
 
-        cam1_images = [item['obs']['camera_1_rgb'] for item in batch]
-        cam2_images = [item['obs']['camera_2_rgb'] for item in batch]
-        cam3_images = [item['obs']['camera_3_rgb'] for item in batch]
-        robot_eef_pose = [item['obs']['agent_pose'] for item in batch]
-        actions = [item['action'] for item in batch]
-        is_pad = [item['is_pad'] for item in batch]
-
-        
-        padded_cam1_images = pad_sequence([img for img in cam1_images], batch_first=True)
-        padded_cam2_images = pad_sequence([img for img in cam2_images], batch_first=True)
-        padded_cam3_images = pad_sequence([img for img in cam3_images], batch_first=True)
-        padded_robot_eef_pose = pad_sequence([pose for pose in robot_eef_pose], batch_first=True)
-        padded_actions = pad_sequence([action for action in actions], batch_first=True)
-        padded_is_pad = pad_sequence([pad for pad in is_pad], batch_first=True)
+        padded_actions = pad_sequence(actions, batch_first=True)  # -> (B, L_max, D)
+        padded_is_pad = pad_sequence(is_pad, batch_first=True)    # -> (B, L_max)
 
         return {
-            'obs': {
-                'camera_1_rgb': padded_cam1_images,    # [B,T,3,H,W]
-                'camera_2_rgb': padded_cam2_images,    # [B,T,3,H,W]
-                'camera_3_rgb': padded_cam3_images,    # [B,T,3,H,W]
-                'agent_pose': padded_robot_eef_pose # [B,T,7]
-            },
-            'action': padded_actions,            # [B,T,7]
+            'obs': stacked_obs,
+            'action': padded_actions,
             'is_pad': padded_is_pad
         }
 

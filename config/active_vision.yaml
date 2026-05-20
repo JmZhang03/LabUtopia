@@ -1,4 +1,4 @@
-name: Active_vision
+name: pick_static
 
 task_type: "active_vision"
 controller_type: "active_vision"
@@ -11,17 +11,17 @@ mode: "collect"
 usd_path: "assets/chemistry_lab/lab_001/lab_001.usd"
 
 
-max_episodes: 10
+max_episodes: 30
 
 infer:
   type: "local"
-  obs_names: {"camera_1_rgb": 'camera_1_rgb', "camera_2_rgb": 'camera_2_rgb', "camera_3_rgb": 'camera_3_rgb'}
-  # policy_model_path: "outputs/exp_data/1_pick_bottle/2_static/train_act/checkpoints/latest.ckpt"
-  # policy_config_path: "outputs/exp_data/1_pick_bottle/2_static/train_act/.hydra/config.yaml"
-  # normalizer_path: "outputs/exp_data/1_pick_bottle/2_static/train_act/checkpoints/normalize.ckpt"
-  policy_model_path: "outputs/exp_data/1_pick_bottle/3_active/train_act/checkpoints/latest.ckpt"
-  policy_config_path: "outputs/exp_data/1_pick_bottle/3_active/train_act/.hydra/config.yaml"
-  normalizer_path: "outputs/exp_data/1_pick_bottle/3_active/train_act/checkpoints/normalize.ckpt"
+  obs_names: {"camera_1_rgb": 'camera_1_rgb', "camera_2_rgb": 'camera_2_rgb'}
+  # policy_model_path: "outputs/exp_data/pick/2_static/train_act/checkpoints/latest.ckpt"
+  # policy_config_path: "outputs/exp_data/pick/2_static/train_act/.hydra/config.yaml"
+  # normalizer_path: "outputs/exp_data/pick/2_static/train_act/checkpoints/normalize.ckpt"
+  policy_model_path: "outputs/exp_data/pick/3_active/train_act/checkpoints/latest.ckpt"
+  policy_config_path: "outputs/exp_data/pick/3_active/train_act/.hydra/config.yaml"
+  normalizer_path: "outputs/exp_data/pick/3_active/train_act/checkpoints/normalize.ckpt"
   host: "127.0.0.1"
   port: 8000
   n_obs_steps: 1
@@ -44,23 +44,24 @@ task:
         z: [0.7, 0.7]
 
 cameras:
-  - prim_path: "/World/Camera1"
-    name: "camera_1"
-    translation: [-5.24, 4.63, 4.13]
-    resolution: [256, 256]
-    focal_length: 6
-    orientation: [-0.29, -0.20, 0.52, 0.78]
-    image_type: "rgb"
+  # - prim_path: "/World/Camera1"
+  #   name: "camera_1"
+  #   translation: [-5.24, 4.63, 4.13]
+  #   resolution: [256, 256]
+  #   focal_length: 6
+  #   orientation: [-0.29, -0.20, 0.52, 0.78]
+  #   image_type: "rgb"
 
   - prim_path: "/World/Franka/panda_hand/arm_camera"
-    name: "camera_2"
+    name: "camera_1"
     resolution: [256, 256]
     image_type: "rgb"
 
   - prim_path: "/World/Ridgebase/panda_hand/Camera"
-    name: "camera_3"
+    name: "camera_2"
     resolution: [256, 256]
-    clipping_range: [0.2, 6.0]
+    focal_length: 1.0
+    clipping_range: [0.4, 5.0]
     image_type: "rgb"
 
 robot:
@@ -72,7 +73,7 @@ robot:
   - prim_path: "/World/Ridgebase"
     name: "ridgebase"
     type: "ridgebase"
-    position: [-1.2, -1.5, 0.0]
+    position: [-1.2, -1.4, 0.0]
 
 collector:
   type: "default"

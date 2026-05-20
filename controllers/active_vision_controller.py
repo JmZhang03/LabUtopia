@@ -1,4 +1,5 @@
 import re
+import copy
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
@@ -18,9 +19,10 @@ class ActiveVisionController(PickTaskController):
         self.robot_op = robot[0]  # operator
         self.robot_obs = robot[1] # observer
         self.robots = robot       # robot list
-        self.obs_initial_joints = [0, 0, 0, 0.5, -1.57, 0, -1.57, 0, 1.57, -0.8, 0.04, 0.04]
+        self.obs_initial_joints = [0, 0, 0, 0.8, -1.57, 0, -1.57, 0, 1.57, -0.8, 0.04, 0.04]
         self.obs_base_default = [0, 0, 0]
         self.obs_gripper_default = [0.04, 0.04]
+        self.gripper_threshold = 0.035
         super().__init__(cfg, self.robot_op)
         if self.mode == "infer":
             self.trajectory_controller_obs = FrankaTrajectoryController(
@@ -65,21 +67,41 @@ class ActiveVisionController(PickTaskController):
     def _step_infer(self, state):
         language_instruction = self.get_language_instruction()
         state['language_instruction'] = language_instruction
+
+        # state gripper [0, 0.04]  ->  policy gripper 0.0/1.0
+        state_infer = copy.deepcopy(state)
+        if 'joint_positions' in state_infer:  # only op
+            gripper_pos = state_infer['joint_positions'][7]
+            if gripper_pos < self.gripper_threshold:
+                state_infer['joint_positions'][7] = state_infer['joint_positions'][8] = 0.0  # close
+            else:
+                state_infer['joint_positions'][7] = state_infer['joint_positions'][8] = 1.0  # open
+        else:
+            gripper_pos = state_infer['joint_positions_op'][7]
+            if gripper_pos < self.gripper_threshold:
+                state_infer['joint_positions_op'][7] = state_infer['joint_positions_op'][8] = 0.0  # close
+            else:
+                state_infer['joint_positions_op'][7] = state_infer['joint_positions_op'][8] = 1.0  # open
             
-        action = self.inference_engine.step_inference(state)
+        action = self.inference_engine.step_inference(state_infer)
         if action is None:
             return None, False, False
         
+        # policy gripper 0.0/1.0  ->  state gripper [0, 0.04]
+        op_gripper = action[7]
+        if op_gripper < 0.5:
+            gripper_pos = 0.0  # close
+        else:
+            gripper_pos = 0.04  # open
+        
         if len(action) == 8: # only op
-            op_gripper = [action[7]]
-            op_joints = np.concatenate([action, op_gripper])
+            op_joints = np.concatenate([action[:-1], [gripper_pos, gripper_pos]])
             action_op = ArticulationAction(joint_positions=list(op_joints))
             action_obs = None
         elif len(action) == 15:
-            action_op_8d = action[:8]
-            op_gripper = [action[7]]
+            action_op_7d = action[:7]
             action_obs_7d = action[8:]
-            op_full_joints = np.concatenate([action_op_8d, op_gripper])
+            op_full_joints = np.concatenate([action_op_7d, [gripper_pos, gripper_pos]])
             action_op = ArticulationAction(joint_positions=list(op_full_joints))
             obs_full_joints = np.concatenate([
                 self.obs_base_default, 

@@ -1,4 +1,4 @@
-name: Active_single
+name: pick_single
 
 task_type: "pick"
 controller_type: "pick"
@@ -7,17 +7,17 @@ mode: "collect"
 
 usd_path: "assets/chemistry_lab/lab_001/lab_001.usd"
 
-max_episodes: 10
+max_episodes: 30
 
 infer:
   type: "local"
-  obs_names: {"camera_1_rgb": 'camera_1_rgb', "camera_2_rgb": 'camera_2_rgb'}
-  policy_model_path: "outputs/exp_data/1_pick_bottle/1_single/train_act/checkpoints/latest.ckpt"
-  policy_config_path: "outputs/exp_data/1_pick_bottle/1_single/train_act/.hydra/config.yaml"
-  normalizer_path: "outputs/exp_data/1_pick_bottle/1_single/train_act/checkpoints/normalize.ckpt"
-  # policy_model_path: "outputs/exp_data/1_pick_bottle/1_single/train_dp/checkpoints/latest.ckpt"
-  # policy_config_path: "outputs/exp_data/1_pick_bottle/1_single/train_dp/.hydra/config.yaml"
-  # normalizer_path: "outputs/exp_data/1_pick_bottle/1_single/train_dp/checkpoints/normalize.ckpt"  
+  obs_names: {"camera_1_rgb": 'camera_1_rgb'}
+  policy_model_path: "outputs/exp_data/pick/1_single/train_act/checkpoints/latest.ckpt"
+  policy_config_path: "outputs/exp_data/pick/1_single/train_act/.hydra/config.yaml"
+  normalizer_path: "outputs/exp_data/pick/1_single/train_act/checkpoints/normalize.ckpt"
+  # policy_model_path: "outputs/exp_data/pick/1_single/train_dp/checkpoints/latest.ckpt"
+  # policy_config_path: "outputs/exp_data/pick/1_single/train_dp/.hydra/config.yaml"
+  # normalizer_path: "outputs/exp_data/pick/1_single/train_dp/checkpoints/normalize.ckpt"  
   host: "127.0.0.1"
   port: 8000
   n_obs_steps: 1
@@ -40,16 +40,16 @@ task:
         z: [0.7, 0.7]
 
 cameras:
-  - prim_path: "/World/Camera1"
-    name: "camera_1"
-    translation: [-5.24, 4.63, 4.13]
-    resolution: [256, 256]
-    focal_length: 6
-    orientation: [-0.29, -0.20, 0.52, 0.78]
-    image_type: "rgb"
+  # - prim_path: "/World/Camera1"
+  #   name: "camera_1"
+  #   translation: [-5.24, 4.63, 4.13]
+  #   resolution: [256, 256]
+  #   focal_length: 6
+  #   orientation: [-0.29, -0.20, 0.52, 0.78]
+  #   image_type: "rgb"
 
   - prim_path: "/World/Franka/panda_hand/arm_camera"
-    name: "camera_2"
+    name: "camera_1"
     resolution: [256, 256]
     image_type: "rgb"
 
