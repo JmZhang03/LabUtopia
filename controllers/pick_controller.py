@@ -164,9 +164,11 @@ class PickTaskController(BaseController):
             state_infer['joint_positions'][7] = state_infer['joint_positions'][8] = 1.0  # open
             
         action_infer = self.inference_engine.step_inference(state_infer)
+        if action_infer is None:
+            return None, False, False
 
         # policy gripper 0.0/1.0  ->  state gripper [0, 0.04]
-        action_infer[7] = 0.0 if action_infer[7] < 0.5 else 0.04
+        action_infer[7] = 0.02 if action_infer[7] < 0.5 else 0.04
         action_joints = np.concatenate([action_infer, [action_infer[7]]])
         action = ArticulationAction(joint_positions=action_joints)
         

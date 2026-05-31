@@ -1,4 +1,4 @@
-name: pick_single
+name: pick_double
 
 task_type: "pick"
 controller_type: "pick"
@@ -11,13 +11,13 @@ max_episodes: 50
 
 infer:
   type: "local"
-  obs_names: {"camera_1_rgb": 'camera_1_rgb'}
-  policy_model_path: "outputs/exp_data/pick/1_single/train_act/checkpoints/latest.ckpt"
-  policy_config_path: "outputs/exp_data/pick/1_single/train_act/.hydra/config.yaml"
-  normalizer_path: "outputs/exp_data/pick/1_single/train_act/checkpoints/normalize.ckpt"
-  # policy_model_path: "outputs/exp_data/pick/1_single/train_dp/checkpoints/latest.ckpt"
-  # policy_config_path: "outputs/exp_data/pick/1_single/train_dp/.hydra/config.yaml"
-  # normalizer_path: "outputs/exp_data/pick/1_single/train_dp/checkpoints/normalize.ckpt"  
+  obs_names: {"camera_1_rgb": 'camera_1_rgb', "camera_2_rgb": 'camera_2_rgb'}
+  policy_model_path: "outputs/exp_data/pick/2_double/train_act/checkpoints/latest.ckpt"
+  policy_config_path: "outputs/exp_data/pick/2_double/train_act/.hydra/config.yaml"
+  normalizer_path: "outputs/exp_data/pick/2_double/train_act/checkpoints/normalize.ckpt"  
+  # policy_model_path: "outputs/exp_data/pick/2_double/train_dp/checkpoints/latest.ckpt"
+  # policy_config_path: "outputs/exp_data/pick/2_double/train_dp/.hydra/config.yaml"
+  # normalizer_path: "outputs/exp_data/pick/2_double/train_dp/checkpoints/normalize.ckpt"  
   host: "127.0.0.1"
   port: 8000
   n_obs_steps: 1
@@ -48,10 +48,13 @@ cameras:
     orientation: [0.30, 0.12, 0.37, 0.87]
     image_type: "rgb"
 
-  # - prim_path: "/World/Franka/panda_hand/arm_camera"
-  #   name: "camera_1"
-  #   resolution: [256, 256]
-  #   image_type: "rgb"
+  - prim_path: "/World/Camera2"
+    name: "camera_2"
+    translation: [-4.84, 2.55, 3.13]
+    resolution: [256, 256]
+    focal_length: 10
+    orientation: [-0.38, -0.27, 0.50, 0.73]
+    image_type: "rgb"
 
 robot:
   prim_path: "/World/Franka"

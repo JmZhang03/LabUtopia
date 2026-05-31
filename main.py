@@ -360,68 +360,71 @@ def main():
                     ee_pos_obs, ee_quat_obs_xyzw = obs_ik_controller.get_current_pose()
                     obs_pose = np.concatenate([ee_pos_obs, ee_quat_obs_xyzw])                        
 
-                    # Obs Follow VR
-                    if op_paused:
-                        # Op Apply Last Action
-                        robot_op.get_articulation_controller().apply_action(last_op_action)
+                    # Obs Follow VR   
+                    # Get Obs Target Action
+                    action = ctrl.run(data)
+                    if action is None:
+                        continue
+                    
+                    target_obs_pos = action[8:11]
+                    target_obs_quat = action[11:15]
 
-                        # Get Target Action
-                        action = ctrl.run(data)
-                        if action is None:
-                            continue
-                        
-                        target_obs_pos = action[8:11]
-                        target_obs_quat = action[11:15]
+                    if test_step_counter % 50 == 0:
+                        print(f"Obs current pos: {ee_pos_obs} | quat: {ee_quat_obs_xyzw}")
+                        print(f"Obs target pos: {target_obs_pos} | quat: {target_obs_quat}\n")
 
-                        if test_step_counter % 50 == 0:
-                            print(f"Obs current pos: {ee_pos_obs} | quat: {ee_quat_obs_xyzw}")
-                            print(f"Obs target pos: {target_obs_pos} | quat: {target_obs_quat}\n")
-
-                        target_obs_quat_wxyz = np.array([target_obs_quat[3], target_obs_quat[0], 
-                                                            target_obs_quat[1], target_obs_quat[2]])
-                        target_obs_action = obs_ik_controller.forward(target_obs_pos, target_obs_quat_wxyz)
-                        if target_obs_action is None:
-                            continue
-                        target_obs_joints = target_obs_action.joint_positions[:7]
-                        # Apply Articulation Action
-                        obs_action = ArticulationAction(
-                            joint_positions=list(obs_base_default) + list(target_obs_joints) + [0.04, 0.04]
-                        )               
-                        robot_obs.get_articulation_controller().apply_action(obs_action)
-                        last_obs_action = obs_action
+                    target_obs_quat_wxyz = np.array([target_obs_quat[3], target_obs_quat[0], 
+                                                        target_obs_quat[1], target_obs_quat[2]])
+                    target_obs_action = obs_ik_controller.forward(target_obs_pos, target_obs_quat_wxyz)
+                    if target_obs_action is None:
+                        continue
+                    target_obs_joints = target_obs_action.joint_positions[:7]
+                    # Apply Articulation Action
+                    obs_action = ArticulationAction(
+                        joint_positions=list(obs_base_default) + list(target_obs_joints) + [0.04, 0.04]
+                    )               
+                    last_obs_action = obs_action
                     
                     # Op Follow Controller
-                    else:
-                        # Obs Apply Last Action
-                        robot_obs.get_articulation_controller().apply_action(last_obs_action)
+                    # Get Op Target Action
+                    action, done, is_success = task_controller.step(state)
+                    if action is not None:
+                        assert isinstance(action, (list, tuple))
+                        action_op = action[0]
                         
-                        # Get Op Target Action
-                        action, done, is_success = task_controller.step(state)
-                        if action is not None:
-                            assert isinstance(action, (list, tuple))
-                            action_op = action[0]
-                            robot_op.get_articulation_controller().apply_action(action_op)
-                            last_op_action = action_op
+                        # Slow Down
+                        if op_paused:
+                            current_op_joints = robot_op.get_joint_positions()
+                            slow_joints = current_op_joints.copy()
+                            target_op_joints = np.array(action_op.joint_positions)
+                            alpha = 0.1 
+                            slow_joints[:7] = current_op_joints[:7] * (1 - alpha) + target_op_joints * alpha
+                            action_op = ArticulationAction(joint_positions=list(slow_joints))
 
-                        if done:
-                            vr_reset_needed = True
-                            task.reset_needed = True
-                            task_controller.reset_needed = True
-                            if is_success:
-                                task_controller._last_success = True
-                                if args.only_op:
-                                    final_joint_positions = np.concatenate([
-                                        state['joint_positions_op'][:-2], 
-                                        [gripper_pos],
-                                    ])
-                                else:
-                                    final_joint_positions = np.concatenate([
-                                        state['joint_positions_op'][:-2], 
-                                        [gripper_pos],
-                                        state['joint_positions_obs'][3:-2]
-                                    ])
+                        last_op_action = action_op
+
+                    robot_op.get_articulation_controller().apply_action(last_op_action)
+                    robot_obs.get_articulation_controller().apply_action(last_obs_action)
+                    
+                    if done:
+                        vr_reset_needed = True
+                        task.reset_needed = True
+                        task_controller.reset_needed = True
+                        if is_success:
+                            task_controller._last_success = True
+                            if args.only_op:
+                                final_joint_positions = np.concatenate([
+                                    state['joint_positions_op'][:-2], 
+                                    [gripper_pos],
+                                ])
                             else:
-                                task_controller._last_success = False
+                                final_joint_positions = np.concatenate([
+                                    state['joint_positions_op'][:-2], 
+                                    [gripper_pos],
+                                    state['joint_positions_obs'][3:-2]
+                                ])
+                        else:
+                            task_controller._last_success = False
 
                     # Mark Task Complete: Success
                     if data.r_button_one and not last_r_button_one:

@@ -90,7 +90,7 @@ class ActiveVisionController(PickTaskController):
         # policy gripper 0.0/1.0  ->  state gripper [0, 0.04]
         op_gripper = action[7]
         if op_gripper < 0.5:
-            gripper_pos = 0.0  # close
+            gripper_pos = 0.02  # close
         else:
             gripper_pos = 0.04  # open
         

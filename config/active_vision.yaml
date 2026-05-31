@@ -1,4 +1,4 @@
-name: pick_static
+name: pick_active
 
 task_type: "active_vision"
 controller_type: "active_vision"
@@ -6,22 +6,22 @@ controller_type: "active_vision"
 sub_task_type: "pick"
 sub_controller_type: "pick"
 
-mode: "collect"
+mode: "infer"
 
 usd_path: "assets/chemistry_lab/lab_001/lab_001.usd"
 
 
-max_episodes: 30
+max_episodes: 50
 
 infer:
   type: "local"
   obs_names: {"camera_1_rgb": 'camera_1_rgb', "camera_2_rgb": 'camera_2_rgb'}
-  # policy_model_path: "outputs/exp_data/pick/2_static/train_act/checkpoints/latest.ckpt"
-  # policy_config_path: "outputs/exp_data/pick/2_static/train_act/.hydra/config.yaml"
-  # normalizer_path: "outputs/exp_data/pick/2_static/train_act/checkpoints/normalize.ckpt"
-  policy_model_path: "outputs/exp_data/pick/3_active/train_act/checkpoints/latest.ckpt"
+  policy_model_path: "outputs/exp_data/pick/3_active/train_act/checkpoints/try.ckpt"
   policy_config_path: "outputs/exp_data/pick/3_active/train_act/.hydra/config.yaml"
   normalizer_path: "outputs/exp_data/pick/3_active/train_act/checkpoints/normalize.ckpt"
+  # policy_model_path: "outputs/exp_data/pick/3_active/train_dp/checkpoints/try.ckpt"
+  # policy_config_path: "outputs/exp_data/pick/3_active/train_dp/.hydra/config.yaml"
+  # normalizer_path: "outputs/exp_data/pick/3_active/train_dp/checkpoints/normalize.ckpt"
   host: "127.0.0.1"
   port: 8000
   n_obs_steps: 1
@@ -29,13 +29,13 @@ infer:
   max_retries: 3
 
 task:
-  max_steps: 2000
+  max_steps: 1500
   obj_paths:
     - path: "/World/conical_bottle02"
       position_range:
-        x: [-0.05, 0.05]
-        y: [-0.95, -1.05]
-        z: [0.8, 0.8]
+        x: [-0.20,  0.00]  # [-0.15, -0.13] # dp  # [-0.20, -0.16] # act
+        y: [-0.95, -1.15]  # [-1.05, -1.07] # dp  # [-0.95, -0.99] # act 
+        z: [0.78, 0.78]
     
     - path: "/World/DryingBox_01"
       position_range:
@@ -44,17 +44,12 @@ task:
         z: [0.7, 0.7]
 
 cameras:
-  # - prim_path: "/World/Camera1"
-  #   name: "camera_1"
-  #   translation: [-5.24, 4.63, 4.13]
-  #   resolution: [256, 256]
-  #   focal_length: 6
-  #   orientation: [-0.29, -0.20, 0.52, 0.78]
-  #   image_type: "rgb"
-
-  - prim_path: "/World/Franka/panda_hand/arm_camera"
+  - prim_path: "/World/Camera1"
     name: "camera_1"
+    translation: [2.63, 3.00, 5.78]
     resolution: [256, 256]
+    focal_length: 8
+    orientation: [0.30, 0.12, 0.37, 0.87]
     image_type: "rgb"
 
   - prim_path: "/World/Ridgebase/panda_hand/Camera"
