@@ -187,13 +187,14 @@ def main():
         op_paused = False
         vr_reset_needed = False
         final_joint_positions = None
-        test_step_counter = 0
 
         # Prepare IK Controller
         op_ik_controller = IKController(robot_articulation=robot_op)
         obs_ik_controller = IKController(robot_articulation=robot_obs)
         print("[VR] Waiting for headset connection...")
 
+    test_step_counter = 0
+    test_step_list = []
     video_writer = None
     video_success_count = 0
     current_video_path = None
@@ -252,8 +253,12 @@ def main():
                             os.remove(current_video_path)
                     current_video_path = None 
                            
+                test_step_counter = 0
                 task_controller.reset()
                 if task_controller.episode_num() >= cfg.max_episodes:
+                    print(f"All successful episode steps: {test_step_list}")
+                    avg_test_step = sum(test_step_list) / len(test_step_list)
+                    print(f"Average successful episode steps: {avg_test_step}")
                     task_controller.close()
                     simulation_app.close()
                     cv2.destroyAllWindows()
@@ -458,6 +463,7 @@ def main():
                     last_l_button_one = data.l_button_one
 
             else:
+                test_step_counter += 1
                 state = task.step()
                 if state is None:
                     continue
@@ -494,6 +500,8 @@ def main():
                     robot.get_articulation_controller().apply_action(action)
                 
                 if done:
+                    if is_success:
+                        test_step_list.append(test_step_counter)
                     task.on_task_complete(is_success)
                     continue
             
